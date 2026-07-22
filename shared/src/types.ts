@@ -25,6 +25,7 @@ export type Counter = {
     id: string;
     kind: string; // e.g. "+1/+1", "loyalty", "poison", "energy"
     amount: number;
+    color?: string;
 };
 
 export type CardFace = {
@@ -55,6 +56,7 @@ export type CardInstance = {
     counters: Counter[];
     attachments: Attachment[]; // things attached to this card
     attachedTo?: CardId; // if this is an aura/equipment attached to something
+    colorTag?: string;
     notes?: string;
 };
 
@@ -103,15 +105,20 @@ export type GameAction =
     | { type: 'moveCard'; cardId: CardId; toZone: Zone; toPlayerId?: PlayerId }
     | { type: 'tapToggle'; cardId: CardId }
     | { type: 'setLife'; playerId: PlayerId; life: number }
-    | { type: 'counter:add'; cardId: CardId; kind: string; amount?: number }
+    | { type: 'counter:add'; cardId: CardId; kind: string; amount?: number; color?: string }
     | { type: 'counter:set'; cardId: CardId; kind: string; amount: number }
     | { type: 'counter:clear'; cardId: CardId }
+    | { type: 'card:setColorTag'; cardId: CardId; color?: string }
     | { type: 'attach'; attachmentCardId: CardId; targetCardId: CardId }
     | { type: 'detach'; attachmentCardId: CardId }
     | { type: 'card:setPos'; cardId: CardId; x: number; y: number }
     | { type: 'turn:setPhase'; playerId: PlayerId; phase: Phase }
     | { type: 'turn:nextPhase'; playerId: PlayerId }
-    | { type: 'dice:rollD20'; playerId: PlayerId };
+    | { type: 'dice:rollD20'; playerId: PlayerId }
+    | { type: 'random:rollDice'; playerId: PlayerId; sides: number; count: number; modifier?: number }
+    | { type: 'random:coinFlip'; playerId: PlayerId }
+    | { type: 'random:number'; playerId: PlayerId; min: number; max: number }
+    | { type: 'random:choosePlayer'; playerId: PlayerId };
 
 export type ArenaDeckSection = 'main' | 'sideboard' | 'commander';
 

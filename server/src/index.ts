@@ -75,6 +75,10 @@ async function hydrateImages(room: Room, scryfallIds: string[]): Promise<void> {
                     c.definition.faces = data.faces;
                     changed = true;
                 }
+                if (!c.definition.typeLine && data.typeLine) {
+                    c.definition.typeLine = data.typeLine;
+                    changed = true;
+                }
             }
             if (changed) broadcastRoom(room);
             await new Promise((r) => setTimeout(r, 120));

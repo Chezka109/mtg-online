@@ -6,6 +6,7 @@ import { LRUCache } from 'lru-cache';
 export type ScryfallImageData = {
     imageUrl?: string;
     faces?: Array<{ name: string; imageUrl?: string }>;
+    typeLine?: string;
 };
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,13 +26,14 @@ function diskPath(id: string): string {
 
 function parseImageData(cardJson: any): ScryfallImageData {
     const imageUrl = cardJson?.image_uris?.normal;
+    const typeLine = typeof cardJson?.type_line === 'string' ? cardJson.type_line : undefined;
     const faces = Array.isArray(cardJson?.card_faces)
         ? cardJson.card_faces.map((f: any) => ({
             name: String(f?.name ?? ''),
             imageUrl: f?.image_uris?.normal,
         }))
         : undefined;
-    return { imageUrl: typeof imageUrl === 'string' ? imageUrl : undefined, faces };
+    return { imageUrl: typeof imageUrl === 'string' ? imageUrl : undefined, faces, typeLine };
 }
 
 async function readDisk(id: string): Promise<any | null> {
