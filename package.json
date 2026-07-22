@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "npm -w shared run build && npm -w server run test",
     "dev": "npm -w server run dev",
     "dev:all": "concurrently -n server,client -c blue,green \"npm -w server run dev\" \"npm -w client run dev\"",
     "build": "npm -w shared run build && npm -w server run build && npm -w client run build"
