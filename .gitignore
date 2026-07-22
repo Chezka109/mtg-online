@@ -19,6 +19,7 @@ server/.cache/
 
 # Editor and operating-system files
 .DS_Store
+.netlify/
 .idea/
 .vscode/
 *.sw?

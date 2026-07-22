@@ -51,6 +51,8 @@ npm run dev:all
 
 - The Socket.IO server is configured for a free Render web service with `render.yaml`.
 - The Vite client is configured for Netlify with `netlify.toml`.
+- Production client: `https://mtg-online-chezka.netlify.app`
+- Production server: `https://mtg-online-server.onrender.com`
 - Set Render's `CLIENT_ORIGIN` to the production Netlify URL.
 - Set Netlify's `VITE_SERVER_URL` to the production Render URL.
 - `server/data/card-index.json` must be present in production for indexed card and image resolution.
