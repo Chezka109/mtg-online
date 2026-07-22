@@ -145,7 +145,16 @@ export function applyAction(state: GameState, action: GameAction): void {
             const next = PHASES[(idx + 1) % PHASES.length];
             state.turn.phase = next;
             const p = state.players[action.playerId];
-            state.log.push(`${p?.name ?? 'Player'} → ${next}`);
+            if (next === 'beginning') {
+                const playerIds = Object.keys(state.players);
+                const activeIndex = playerIds.indexOf(state.turn.activePlayerId);
+                state.turn.activePlayerId = playerIds[(activeIndex + 1) % playerIds.length] ?? state.turn.activePlayerId;
+                state.turn.number += 1;
+                const active = state.players[state.turn.activePlayerId];
+                state.log.push(`Turn ${state.turn.number} → ${active?.name ?? 'Player'}`);
+            } else {
+                state.log.push(`${p?.name ?? 'Player'} → ${next}`);
+            }
             break;
         }
 

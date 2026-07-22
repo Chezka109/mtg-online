@@ -18,7 +18,7 @@ const COUNTER_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'p
 const DICE = [4, 6, 8, 10, 12, 20, 100]
 const BOARD_CATEGORIES = ['land', 'creature', 'artifact', 'enchantment', 'planeswalker', 'other'] as const
 type BoardCategory = (typeof BOARD_CATEGORIES)[number]
-type InspectableZone = 'library' | 'graveyard' | 'exile' | 'command'
+type InspectableZone = 'library' | 'graveyard' | 'exile' | 'command' | 'sideboard'
 
 const GLOSSARY = [
   ['Activated ability', 'An ability written as “cost: effect.” You choose when to activate it unless another rule says otherwise.'],
@@ -497,6 +497,7 @@ function App() {
             <div><button onClick={() => setShowZone('graveyard')}>Graveyard</button><b>{me?.graveyard.length ?? 0}</b></div>
             <div><button onClick={() => setShowZone('exile')}>Exile</button><b>{me?.exile.length ?? 0}</b></div>
             <div><button onClick={() => setShowZone('command')}>Command</button><b>{me?.command.length ?? 0}</b></div>
+            <div><button onClick={() => setShowZone('sideboard')}>Sideboard</button><b>{me?.sideboard.length ?? 0}</b></div>
           </section>
         </aside>
 

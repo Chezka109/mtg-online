@@ -167,18 +167,26 @@ io.on('connection', (socket) => {
 
         const created: string[] = [];
         const scryfallIds: string[] = [];
-        for (const line of main) {
-            const qty = Math.max(0, Math.min(400, Math.trunc(line.quantity)));
-            const def = resolveFromArenaLine(cardIndex, line);
-            if (def.scryfallId) scryfallIds.push(def.scryfallId);
-            for (let i = 0; i < qty; i++) {
-                const card = createPlaceholderCard(playerId, def.name);
-                card.definition = def;
-                room.state.cards[card.id] = card;
-                p.library.push(card.id);
-                created.push(card.id);
+        const importingPlayerId = playerId;
+        const importSection = (section: 'main' | 'sideboard' | 'commander', destination: 'library' | 'sideboard' | 'command') => {
+            for (const line of deck.lines.filter((candidate) => candidate.section === section)) {
+                const qty = Math.max(0, Math.min(400, Math.trunc(line.quantity)));
+                const def = resolveFromArenaLine(cardIndex, line);
+                if (def.scryfallId) scryfallIds.push(def.scryfallId);
+                for (let i = 0; i < qty; i++) {
+                    const card = createPlaceholderCard(importingPlayerId, def.name);
+                    card.definition = def;
+                    card.zone = destination;
+                    room.state.cards[card.id] = card;
+                    p[destination].push(card.id);
+                    created.push(card.id);
+                }
             }
-        }
+        };
+
+        importSection('main', 'library');
+        importSection('sideboard', 'sideboard');
+        importSection('commander', 'command');
 
         applyAction(room.state, { type: 'shuffleLibrary', playerId } satisfies GameAction);
         room.state.log.push(`${p.name} imported a deck (${created.length} cards)`);
