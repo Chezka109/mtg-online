@@ -420,18 +420,10 @@ function App() {
         <div className="landingGlow glowOne" />
         <div className="landingGlow glowTwo" />
         <nav className="landingNav">
-          <div className="brand"><span className="brandMark">D</span><span>DeckHub <small>for Magic: The Gathering</small></span></div>
+          <div className="brand"><span>DeckHub <small>for Magic: The Gathering</small></span></div>
           <div className={`serverStatus ${connected ? 'online' : 'waking'}`}><span />{connected ? 'Server online' : 'Server waking'}</div>
         </nav>
         <section className="heroSection">
-          <div className="heroCopy">
-            <div className="eyebrow">A shared tabletop for Magic players</div>
-            <h1>Play the cards.<br /><em>Keep the conversation.</em></h1>
-            <p>A flexible multiplayer board with synchronized zones, Arena deck import, card artwork, counters, dice, chat, and just enough structure to keep the game moving.</p>
-            <div className="heroFeatures">
-              <span>◇ Live multiplayer</span><span>◇ Rules-light play</span><span>◇ All MTG printings</span>
-            </div>
-          </div>
           <div className="entryCard">
             <div className="entryTabs"><span className="active">Start playing</span><span>No account required</span></div>
             <label>Player name<input value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="How should players see you?" maxLength={32} /></label>
@@ -444,7 +436,6 @@ function App() {
             <p className="entryNote">Rooms are temporary and disappear when the free server restarts.</p>
           </div>
         </section>
-        <footer className="landingFooter">DeckHub for Magic: The Gathering · Built for friendly games</footer>
         {toast && <div className="globalToast">{toast}</div>}
       </main>
     )
@@ -453,7 +444,7 @@ function App() {
   return (
     <main className="tableApp">
       <header className="topBar">
-        <div className="brand compact"><span className="brandMark">D</span><span>DeckHub <small>for MTG</small></span></div>
+        <div className="brand compact"><span>DeckHub <small>for MTG</small></span></div>
         <div className="roomIdentity"><span>Room</span><button onClick={() => navigator.clipboard.writeText(roomCode).then(() => notify('Room code copied.'))}>{roomCode}</button><span className="modePill">{state.gameMode}</span></div>
         <div className="topActions">
           <button onClick={() => setShowRules(true)}>Rules</button>
