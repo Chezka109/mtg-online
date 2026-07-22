@@ -5,6 +5,10 @@ const PHASES: Phase[] = ['beginning', 'precombat_main', 'combat', 'postcombat_ma
 const CARD_TAG_COLORS = new Set(['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'white']);
 const COUNTER_COLORS = new Set(['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'white', 'gray']);
 
+function finiteInt(value: number, fallback: number): number {
+    return Number.isFinite(value) ? Math.trunc(value) : fallback;
+}
+
 function removeFromArray<T>(arr: T[], item: T): void {
     const idx = arr.indexOf(item);
     if (idx >= 0) arr.splice(idx, 1);
@@ -48,13 +52,13 @@ export function applyAction(state: GameState, action: GameAction): void {
         case 'setLife': {
             const p = state.players[action.playerId];
             if (!p) return;
-            p.life = Math.max(-999, Math.min(999, Math.trunc(action.life)));
+            p.life = Math.max(-999, Math.min(999, finiteInt(action.life, p.life)));
             state.log.push(`${p.name} life -> ${p.life}`);
             break;
         }
 
         case 'draw': {
-            const count = Math.max(1, Math.min(7, action.count ?? 1));
+            const count = Math.max(1, Math.min(7, finiteInt(action.count ?? 1, 1)));
             const p = state.players[action.playerId];
             if (!p) return;
             for (let i = 0; i < count; i++) {
@@ -156,9 +160,9 @@ export function applyAction(state: GameState, action: GameAction): void {
         case 'random:rollDice': {
             const p = state.players[action.playerId];
             if (!p) return;
-            const sides = Math.max(2, Math.min(1000, Math.trunc(action.sides)));
-            const count = Math.max(1, Math.min(20, Math.trunc(action.count)));
-            const modifier = Math.max(-999, Math.min(999, Math.trunc(action.modifier ?? 0)));
+            const sides = Math.max(2, Math.min(1000, finiteInt(action.sides, 20)));
+            const count = Math.max(1, Math.min(20, finiteInt(action.count, 1)));
+            const modifier = Math.max(-999, Math.min(999, finiteInt(action.modifier ?? 0, 0)));
             const rolls = Array.from({ length: count }, () => 1 + Math.floor(Math.random() * sides));
             const total = rolls.reduce((sum, roll) => sum + roll, 0) + modifier;
             const modifierText = modifier === 0 ? '' : modifier > 0 ? ` + ${modifier}` : ` - ${Math.abs(modifier)}`;
@@ -176,8 +180,8 @@ export function applyAction(state: GameState, action: GameAction): void {
         case 'random:number': {
             const p = state.players[action.playerId];
             if (!p) return;
-            const rawMin = Math.trunc(action.min);
-            const rawMax = Math.trunc(action.max);
+            const rawMin = finiteInt(action.min, 1);
+            const rawMax = finiteInt(action.max, 100);
             const min = Math.max(-1_000_000, Math.min(rawMin, rawMax));
             const max = Math.min(1_000_000, Math.max(rawMin, rawMax));
             const value = min + Math.floor(Math.random() * (max - min + 1));
@@ -200,7 +204,7 @@ export function applyAction(state: GameState, action: GameAction): void {
             if (!c) return;
             const kind = String(action.kind ?? '').trim();
             if (!kind) return;
-            const delta = Math.max(-999, Math.min(999, Math.trunc(action.amount ?? 1)));
+            const delta = Math.max(-999, Math.min(999, finiteInt(action.amount ?? 1, 1)));
             const existing = c.counters.find((x) => x.kind === kind);
             if (existing) {
                 existing.amount = Math.max(-999, Math.min(999, existing.amount + delta));
@@ -221,7 +225,7 @@ export function applyAction(state: GameState, action: GameAction): void {
             if (!c) return;
             const kind = String(action.kind ?? '').trim();
             if (!kind) return;
-            const amount = Math.max(-999, Math.min(999, Math.trunc(action.amount)));
+            const amount = Math.max(-999, Math.min(999, finiteInt(action.amount, 0)));
             const existing = c.counters.find((x) => x.kind === kind);
             if (amount === 0) {
                 c.counters = c.counters.filter((x) => x.kind !== kind);

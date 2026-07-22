@@ -18,6 +18,7 @@ const COUNTER_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'p
 const DICE = [4, 6, 8, 10, 12, 20, 100]
 const BOARD_CATEGORIES = ['land', 'creature', 'artifact', 'enchantment', 'planeswalker', 'other'] as const
 type BoardCategory = (typeof BOARD_CATEGORIES)[number]
+type InspectableZone = 'library' | 'graveyard' | 'exile' | 'command'
 
 const GLOSSARY = [
   ['Activated ability', 'An ability written as “cost: effect.” You choose when to activate it unless another rule says otherwise.'],
@@ -95,6 +96,7 @@ function App() {
   const [showRules, setShowRules] = useState(false)
   const [showRandomizer, setShowRandomizer] = useState(false)
   const [showDeckImport, setShowDeckImport] = useState(false)
+  const [showZone, setShowZone] = useState<InspectableZone | null>(null)
   const [glossaryQuery, setGlossaryQuery] = useState('')
   const [randomMode, setRandomMode] = useState<'dice' | 'coin' | 'number' | 'player'>('dice')
   const [diceSides, setDiceSides] = useState(20)
@@ -105,6 +107,7 @@ function App() {
   const [randomOverlay, setRandomOverlay] = useState<string | null>(null)
   const [phaseOverlay, setPhaseOverlay] = useState<string | null>(null)
   const [counterKind, setCounterKind] = useState('+1/+1')
+  const [customCounterKind, setCustomCounterKind] = useState('Marker')
   const [counterAmount, setCounterAmount] = useState(1)
   const [counterColor, setCounterColor] = useState('green')
   const [contextMenu, setContextMenu] = useState<{ cardId: string; x: number; y: number } | null>(null)
@@ -490,10 +493,10 @@ function App() {
 
           <section className="railSection zoneCounts">
             <div className="sectionHeading"><span>Your zones</span></div>
-            <div><button>Library</button><b>{me?.library.length ?? 0}</b></div>
-            <div><button>Graveyard</button><b>{me?.graveyard.length ?? 0}</b></div>
-            <div><button>Exile</button><b>{me?.exile.length ?? 0}</b></div>
-            <div><button>Command</button><b>{me?.command.length ?? 0}</b></div>
+            <div><button onClick={() => setShowZone('library')}>Library</button><b>{me?.library.length ?? 0}</b></div>
+            <div><button onClick={() => setShowZone('graveyard')}>Graveyard</button><b>{me?.graveyard.length ?? 0}</b></div>
+            <div><button onClick={() => setShowZone('exile')}>Exile</button><b>{me?.exile.length ?? 0}</b></div>
+            <div><button onClick={() => setShowZone('command')}>Command</button><b>{me?.command.length ?? 0}</b></div>
           </section>
         </aside>
 
@@ -540,7 +543,7 @@ function App() {
               <div className="counterEditor">
                 <div className="subheading">Counters</div>
                 {selectedCard.counters.map((counter) => <div className="counterControl" key={counter.id}><span className={`colorDot bg-${counter.color ?? 'gray'}`} /><strong>{counter.kind}</strong><button onClick={() => sendAction({ type: 'counter:add', cardId: selectedCard.id, kind: counter.kind, amount: -1, color: counter.color })}>−</button><b>{counter.amount}</b><button onClick={() => sendAction({ type: 'counter:add', cardId: selectedCard.id, kind: counter.kind, amount: 1, color: counter.color })}>+</button><button className="removeButton" onClick={() => sendAction({ type: 'counter:set', cardId: selectedCard.id, kind: counter.kind, amount: 0 })}>×</button></div>)}
-                <div className="newCounter"><select value={counterKind} onChange={(event) => setCounterKind(event.target.value)}><option>+1/+1</option><option>-1/-1</option><option>Loyalty</option><option>Charge</option><option>Shield</option><option>Stun</option><option>Quest</option><option>Custom</option></select><input type="number" min="-99" max="99" value={counterAmount} onChange={(event) => setCounterAmount(Number(event.target.value))} /><div className="miniPalette">{COUNTER_COLORS.map((color) => <button key={color} className={`bg-${color} ${counterColor === color ? 'active' : ''}`} onClick={() => setCounterColor(color)} aria-label={`${color} counter`} />)}</div><button className="addCounterButton" onClick={() => { const kind = counterKind === 'Custom' ? 'Counter' : counterKind; sendAction({ type: 'counter:add', cardId: selectedCard.id, kind, amount: counterAmount, color: counterColor }) }}>Add counter</button></div>
+                <div className="newCounter"><select value={counterKind} onChange={(event) => setCounterKind(event.target.value)}><option>+1/+1</option><option>-1/-1</option><option>Loyalty</option><option>Charge</option><option>Shield</option><option>Stun</option><option>Quest</option><option>Custom</option></select><input type="number" min="-99" max="99" value={counterAmount} onChange={(event) => setCounterAmount(Number(event.target.value))} />{counterKind === 'Custom' && <input className="customCounterName" value={customCounterKind} onChange={(event) => setCustomCounterKind(event.target.value)} placeholder="Counter name" maxLength={24} />}<div className="miniPalette">{COUNTER_COLORS.map((color) => <button key={color} className={`bg-${color} ${counterColor === color ? 'active' : ''}`} onClick={() => setCounterColor(color)} aria-label={`${color} counter`} />)}</div><button className="addCounterButton" onClick={() => { const kind = counterKind === 'Custom' ? customCounterKind.trim() : counterKind; if (kind) sendAction({ type: 'counter:add', cardId: selectedCard.id, kind, amount: counterAmount, color: counterColor }) }}>Add counter</button></div>
               </div>
               <div className="attachmentControls">
                 {!attachFrom ? <button onClick={() => setAttachFrom(selectedCard.id)}>Start attachment</button> : attachFrom !== selectedCard.id ? <><span>Attach {state.cards[attachFrom]?.definition.name ?? 'card'} here?</span><button onClick={() => { sendAction({ type: 'attach', attachmentCardId: attachFrom, targetCardId: selectedCard.id }); setAttachFrom(null) }}>Attach</button><button onClick={() => setAttachFrom(null)}>Cancel</button></> : <button onClick={() => setAttachFrom(null)}>Cancel attachment</button>}
@@ -575,6 +578,7 @@ function App() {
       {showGlossary && <div className="modalBackdrop" onMouseDown={() => setShowGlossary(false)}><section className="modalSheet glossaryModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Reference library</small><h2>Magic terminology</h2></div><button onClick={() => setShowGlossary(false)}>×</button></header><input className="searchInput" value={glossaryQuery} onChange={(event) => setGlossaryQuery(event.target.value)} placeholder="Search keywords and concepts…" /><div className="glossaryList">{filteredGlossary.map(([term, definition]) => <details key={term}><summary>{term}<span>＋</span></summary><p>{definition}</p></details>)}</div></section></div>}
       {showRules && <div className="modalBackdrop" onMouseDown={() => setShowRules(false)}><section className="modalSheet rulesModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Rules-light guide</small><h2>Playing at this table</h2></div><button onClick={() => setShowRules(false)}>×</button></header><p className="modalIntro">Arcane Table provides structure without acting as a judge. The official Magic rules still apply, but players remain free to communicate shortcuts and correct mistakes.</p><div className="rulesList">{RULES.map(([title, body]) => <article key={title}><b>{title}</b><p>{body}</p></article>)}</div><div className="rulesCallout"><strong>Golden rule</strong><span>If all players understand and agree on the game state, keep playing.</span></div></section></div>}
       {showDeckImport && <div className="modalBackdrop" onMouseDown={() => setShowDeckImport(false)}><section className="modalSheet deckModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Deck setup</small><h2>Import from MTG Arena</h2></div><button onClick={() => setShowDeckImport(false)}>×</button></header><p className="modalIntro">Paste an Arena-formatted deck list. Importing replaces your current cards and shuffles the new library.</p><textarea value={deckText} onChange={(event) => setDeckText(event.target.value)} placeholder={'Deck\n4 Lightning Strike (DMU) 137\n…'} rows={14} /><div className="modalActions"><button onClick={() => setDeckText('')}>Clear</button><button className="primaryButton" onClick={importDeck}>Import and shuffle</button></div></section></div>}
+      {showZone && me && <div className="modalBackdrop" onMouseDown={() => setShowZone(null)}><section className="modalSheet zoneModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Your zones</small><h2>{showZone.charAt(0).toUpperCase() + showZone.slice(1)}</h2></div><button onClick={() => setShowZone(null)}>×</button></header><div className="zoneModalToolbar"><span>{me[showZone].length} cards</span>{showZone === 'library' && <button onClick={() => sendAction({ type: 'shuffleLibrary', playerId })}>Shuffle library</button>}</div><div className="zoneCardGrid">{me[showZone].slice().reverse().map((cardId) => { const card = state.cards[cardId]; if (!card) return null; return <article key={card.id} className={`zoneCard tag-${card.colorTag ?? 'none'}`} onClick={(event) => handleCardTap(card.id, event.detail)} onContextMenu={(event) => openContextMenu(card.id, event)}>{card.definition.imageUrl ? <img src={card.definition.imageUrl} alt={card.definition.name} /> : <div className="cardPlaceholder">{card.definition.name}</div>}<strong>{card.definition.name}</strong><div><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'hand' }) }}>Hand</button><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'battlefield' }) }}>Battlefield</button>{showZone !== 'graveyard' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'graveyard' }) }}>GY</button>}{showZone !== 'exile' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'exile' }) }}>Exile</button>}</div></article>})}{me[showZone].length === 0 && <div className="emptyZone">No cards in this zone.</div>}</div></section></div>}
 
       {contextMenu && <div className="cardContextMenu" style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}><span>Card border color</span><div>{CARD_TAGS.map((color) => <button key={color} className={`bg-${color}`} onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId, color }); setContextMenu(null) }} aria-label={color} />)}<button className="clearTag" onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId }); setContextMenu(null) }}>×</button></div></div>}
       {randomOverlay && <div className="resultOverlay"><span>◇</span><strong>{randomOverlay}</strong></div>}
