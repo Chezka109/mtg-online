@@ -90,6 +90,7 @@ function App() {
   const [deckText, setDeckText] = useState('')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
   const [previewCardId, setPreviewCardId] = useState<string | null>(null)
+  const [zoomedCardId, setZoomedCardId] = useState<string | null>(null)
   const [attachFrom, setAttachFrom] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<'organized' | 'freeform'>('organized')
   const [showGlossary, setShowGlossary] = useState(false)
@@ -231,6 +232,7 @@ function App() {
   )
   const selectedCard = selectedCardId && state ? state.cards[selectedCardId] : null
   const previewCard = previewCardId && state ? state.cards[previewCardId] : null
+  const zoomedCard = zoomedCardId && state ? state.cards[zoomedCardId] : null
   const filteredGlossary = GLOSSARY.filter(([term, definition]) =>
     `${term} ${definition}`.toLowerCase().includes(glossaryQuery.toLowerCase()),
   )
@@ -418,7 +420,7 @@ function App() {
         <div className="landingGlow glowOne" />
         <div className="landingGlow glowTwo" />
         <nav className="landingNav">
-          <div className="brand"><span className="brandMark">M</span><span>Arcane Table</span></div>
+          <div className="brand"><span className="brandMark">D</span><span>DeckHub <small>for Magic: The Gathering</small></span></div>
           <div className={`serverStatus ${connected ? 'online' : 'waking'}`}><span />{connected ? 'Server online' : 'Server waking'}</div>
         </nav>
         <section className="heroSection">
@@ -442,7 +444,7 @@ function App() {
             <p className="entryNote">Rooms are temporary and disappear when the free server restarts.</p>
           </div>
         </section>
-        <footer className="landingFooter">Built for friendly games · Rules are resolved by players</footer>
+        <footer className="landingFooter">DeckHub for Magic: The Gathering · Built for friendly games</footer>
         {toast && <div className="globalToast">{toast}</div>}
       </main>
     )
@@ -451,7 +453,7 @@ function App() {
   return (
     <main className="tableApp">
       <header className="topBar">
-        <div className="brand compact"><span className="brandMark">M</span><span>Arcane Table</span></div>
+        <div className="brand compact"><span className="brandMark">D</span><span>DeckHub <small>for MTG</small></span></div>
         <div className="roomIdentity"><span>Room</span><button onClick={() => navigator.clipboard.writeText(roomCode).then(() => notify('Room code copied.'))}>{roomCode}</button><span className="modePill">{state.gameMode}</span></div>
         <div className="topActions">
           <button onClick={() => setShowRules(true)}>Rules</button>
@@ -528,7 +530,7 @@ function App() {
 
         <aside className={`rightRail panelSurface ${inspectorOpen ? 'open' : ''}`}>
           <section className="railSection previewSection">
-            <div className="sectionHeading"><span>Card preview</span>{previewCard && <button onClick={() => setPreviewCardId(null)}>×</button>}</div>
+            <div className="sectionHeading"><span>Card preview</span>{previewCard && <div className="previewHeaderActions"><button onClick={() => setZoomedCardId(previewCard.id)} aria-label="Open large card preview" title="Open large preview">⛶</button><button onClick={() => setPreviewCardId(null)} aria-label="Close card preview">×</button></div>}</div>
             {previewCard ? <div className="largePreview">{previewCard.definition.imageUrl ? <img src={previewCard.definition.imageUrl} alt={previewCard.definition.name} /> : <div className="cardPlaceholder">{previewCard.definition.name}</div>}<strong>{previewCard.definition.name}</strong><span>{previewCard.definition.typeLine ?? 'Card details loading…'}</span></div> : <div className="previewEmpty"><span>◫</span><p>Double-click or double-tap any card to inspect it here.</p></div>}
           </section>
 
@@ -582,6 +584,7 @@ function App() {
       {showGlossary && <div className="modalBackdrop" onMouseDown={() => setShowGlossary(false)}><section className="modalSheet glossaryModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Reference library</small><h2>Magic terminology</h2></div><button onClick={() => setShowGlossary(false)}>×</button></header><input className="searchInput" value={glossaryQuery} onChange={(event) => setGlossaryQuery(event.target.value)} placeholder="Search keywords and concepts…" /><div className="glossaryList">{filteredGlossary.map(([term, definition]) => <details key={term}><summary>{term}<span>＋</span></summary><p>{definition}</p></details>)}</div></section></div>}
       {showRules && <div className="modalBackdrop" onMouseDown={() => setShowRules(false)}><section className="modalSheet rulesModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Rules-light guide</small><h2>Playing at this table</h2></div><button onClick={() => setShowRules(false)}>×</button></header><p className="modalIntro">Arcane Table provides structure without acting as a judge. The official Magic rules still apply, but players remain free to communicate shortcuts and correct mistakes.</p><div className="rulesList">{RULES.map(([title, body]) => <article key={title}><b>{title}</b><p>{body}</p></article>)}</div><div className="rulesCallout"><strong>Golden rule</strong><span>If all players understand and agree on the game state, keep playing.</span></div></section></div>}
       {showDeckImport && <div className="modalBackdrop" onMouseDown={() => setShowDeckImport(false)}><section className="modalSheet deckModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Deck setup</small><h2>Import from MTG Arena</h2></div><button onClick={() => setShowDeckImport(false)}>×</button></header><p className="modalIntro">Paste an Arena-formatted deck list. Importing replaces your current cards and shuffles the new library.</p><textarea value={deckText} onChange={(event) => setDeckText(event.target.value)} placeholder={'Deck\n4 Lightning Strike (DMU) 137\n…'} rows={14} /><div className="modalActions"><button onClick={() => setDeckText('')}>Clear</button><button className="primaryButton" onClick={importDeck}>Import and shuffle</button></div></section></div>}
+      {zoomedCard && <div className="modalBackdrop cardZoomBackdrop" onMouseDown={() => setZoomedCardId(null)}><section className="cardZoomModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Card preview</small><strong>{zoomedCard.definition.name}</strong><span>{zoomedCard.definition.typeLine}</span></div><button onClick={() => setZoomedCardId(null)} aria-label="Close large preview">×</button></header><div className="zoomedFaces">{zoomedCard.definition.faces?.some((face) => face.imageUrl) ? zoomedCard.definition.faces.filter((face) => face.imageUrl).map((face) => <figure key={face.name}><img src={face.imageUrl} alt={face.name} /><figcaption>{face.name}</figcaption></figure>) : zoomedCard.definition.imageUrl ? <figure><img src={zoomedCard.definition.imageUrl} alt={zoomedCard.definition.name} /></figure> : <div className="zoomPlaceholder">No card image is available yet.</div>}</div><p>Click outside the card or press the close button to return to the table.</p></section></div>}
       {showZone && me && <div className="modalBackdrop" onMouseDown={() => setShowZone(null)}><section className="modalSheet zoneModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Your zones</small><h2>{showZone.charAt(0).toUpperCase() + showZone.slice(1)}</h2></div><button onClick={() => setShowZone(null)}>×</button></header><div className="zoneModalToolbar"><span>{me[showZone].length} cards</span>{showZone === 'library' && <button onClick={() => sendAction({ type: 'shuffleLibrary', playerId })}>Shuffle library</button>}</div><div className="zoneCardGrid">{me[showZone].slice().reverse().map((cardId) => { const card = state.cards[cardId]; if (!card) return null; return <article key={card.id} className={`zoneCard tag-${card.colorTag ?? 'none'}`} onClick={(event) => handleCardTap(card.id, event.detail)} onContextMenu={(event) => openContextMenu(card.id, event)}>{card.definition.imageUrl ? <img src={card.definition.imageUrl} alt={card.definition.name} /> : <div className="cardPlaceholder">{card.definition.name}</div>}<strong>{card.definition.name}</strong><div><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'hand' }) }}>Hand</button><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'battlefield' }) }}>Battlefield</button>{showZone !== 'graveyard' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'graveyard' }) }}>GY</button>}{showZone !== 'exile' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'exile' }) }}>Exile</button>}</div></article>})}{me[showZone].length === 0 && <div className="emptyZone">No cards in this zone.</div>}</div></section></div>}
 
       {contextMenu && <div className="cardContextMenu" style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}><span>Card border color</span><div>{CARD_TAGS.map((color) => <button key={color} className={`bg-${color}`} onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId, color }); setContextMenu(null) }} aria-label={color} />)}<button className="clearTag" onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId }); setContextMenu(null) }}>×</button></div></div>}

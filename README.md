@@ -1,4 +1,4 @@
-# mtg-online
+# DeckHub for Magic: The Gathering
 
 Local multiplayer MTG tabletop (rules-light) with room codes, MTG Arena deck import, and Scryfall images.
 
