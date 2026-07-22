@@ -1,0 +1,29 @@
+{
+    "name": "@mtg-online/server",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build:index": "node scripts/build-card-index.mjs",
+        "build": "tsc -p tsconfig.json",
+        "start": "node dist/index.js"
+    },
+    "dependencies": {
+        "@mtg-online/shared": "0.0.0",
+        "cors": "^2.8.5",
+        "express": "^4.19.2",
+        "lru-cache": "^11.0.2",
+        "nanoid": "^5.0.7",
+        "socket.io": "^4.7.5",
+        "stream-json": "^2.1.0"
+    },
+    "devDependencies": {
+        "@types/cors": "^2.8.17",
+        "@types/express": "^4.17.21",
+        "@types/node": "^22.13.5",
+        "tsx": "^4.19.2",
+        "typescript": "^5.6.3"
+    },
+    "dependenciesMeta": {}
+}

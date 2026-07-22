@@ -1,0 +1,769 @@
+/* Minimal, readable tabletop UI styles (no external design system assumed). */
+
+* {
+  box-sizing: border-box;
+}
+
+.page {
+  width: 100vw;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 20px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.header h1 {
+  margin: 0;
+  font-size: 20px;
+}
+
+.muted {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.panel {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 12px;
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.panel h2 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+}
+
+.panel h3 {
+  margin: 10px 0 6px 0;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.row.space {
+  justify-content: space-between;
+}
+
+.row.wrap {
+  flex-wrap: wrap;
+}
+
+.divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  margin: 12px 0;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 12px;
+}
+
+@media (max-width: 950px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  font-size: 12px;
+}
+
+input,
+textarea,
+select {
+  width: 100%;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.25);
+  color: inherit;
+}
+
+select {
+  cursor: pointer;
+}
+
+button {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: inherit;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.players {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.playerCard {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.playerName {
+  font-weight: 600;
+}
+
+.pill {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  opacity: 0.85;
+}
+
+.life {
+  width: 44px;
+  text-align: center;
+  font-weight: 700;
+}
+
+.zone {
+  margin-top: 10px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.card {
+  text-align: left;
+}
+
+.cardBlock {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.cardMain {
+  width: 100%;
+  border: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0;
+  background: transparent;
+}
+
+.cardName {
+  font-weight: 600;
+}
+
+.cardImg {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.cardSub {
+  font-size: 11px;
+  opacity: 0.7;
+}
+
+.tapped {
+  transform: rotate(-2deg);
+  opacity: 0.85;
+}
+
+.attachments {
+  padding: 8px;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+.counters {
+  padding: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  gap: 6px;
+}
+
+.counterRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.counterKind {
+  opacity: 0.85;
+}
+
+.counterAmt {
+  width: 28px;
+  display: inline-block;
+  text-align: center;
+  font-weight: 700;
+}
+
+.notice {
+  padding: 8px;
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 255, 255, 0.22);
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.chat {
+  height: 220px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.chatLine {
+  padding: 2px 0;
+  font-size: 13px;
+}
+
+.log {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 8px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.toast {
+  margin-top: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.opponentZone {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ===== New full-screen playfield layout ===== */
+
+
+.gamePage {
+  position: fixed;
+  inset: 0;
+  height: 100dvh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+@media (max-width: 1100px) {
+  .gamePage {
+    height: 100vh;
+  }
+}
+
+.battlefieldRoot {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.12);
+  overflow: auto;
+  padding: 12px;
+}
+
+.boardSurface {
+  position: relative;
+  width: 3600px;
+  height: 2200px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.hudPanel {
+  position: absolute;
+  top: 12px;
+  bottom: 12px;
+  width: 320px;
+  overflow: auto;
+  display: grid;
+  gap: 12px;
+  padding: 0;
+  z-index: 10;
+}
+
+.hudLeft {
+  left: 12px;
+}
+
+.hudRight {
+  right: 12px;
+}
+
+.hudTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.playersHud {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.playerHudRow {
+  display: grid;
+  gap: 6px;
+}
+
+.selectedCardBox {
+  display: grid;
+  gap: 8px;
+}
+
+.handDock {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 12px;
+  width: min(980px, calc(100vw - 24px));
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+  z-index: 10;
+}
+
+@media (max-width: 1100px) {
+  .hudPanel {
+    width: 300px;
+  }
+
+  .handDock {
+    width: calc(100vw - 24px);
+  }
+}
+
+.topHud {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.hudLeft,
+.hudCenter,
+.hudRight {
+  min-width: 0;
+}
+
+.hudTitle {
+  font-weight: 700;
+}
+
+.phaseRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.phaseLabel {
+  opacity: 0.7;
+  font-size: 12px;
+}
+
+.phaseValue {
+  font-weight: 700;
+  font-size: 12px;
+  text-transform: capitalize;
+}
+
+.opponentHand,
+.myHand {
+  padding: 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.02);
+  min-height: 0;
+}
+
+.handMeta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.handCount {
+  font-weight: 800;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.handBackRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.upsideDown {
+  transform: rotate(180deg);
+}
+
+.cardBack {
+  width: 60px;
+  height: 84px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.12), rgba(0, 0, 0, 0.25));
+  flex: 0 0 auto;
+}
+
+.cardBackPlus {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.battlefield {
+  min-height: 0;
+  overflow: auto;
+  padding: 16px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.12);
+  display: grid;
+  gap: 14px;
+}
+
+.dropTarget.dragOver {
+  outline: 2px dashed rgba(255, 255, 255, 0.35);
+  outline-offset: 4px;
+}
+
+.playerStrip {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  align-items: start;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .playerStrip {
+    grid-template-columns: 1fr;
+  }
+}
+
+.stripLeft {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+
+
+.battleBoard {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.cardBattle {
+  position: absolute;
+  width: 134px;
+  height: 134px;
+  display: grid;
+  place-items: center;
+  overflow: visible;
+  user-select: none;
+}
+
+.cardBattle.isSelected .cardTap {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+.cardTap {
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+  width: 96px;
+  height: 134px;
+  display: grid;
+  place-items: center;
+  touch-action: none;
+  transform-origin: center;
+}
+
+.cardArt {
+  width: 96px;
+  height: 134px;
+  object-fit: cover;
+  display: block;
+  border-radius: 12px;
+  transition: transform 120ms ease;
+}
+
+.cardBattle.isTapped .cardTap {
+  transform: rotate(90deg);
+}
+
+.cardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.cardActions button {
+  padding: 4px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+}
+
+.cardBadges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 4px;
+  pointer-events: none;
+}
+
+.badge {
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  opacity: 0.9;
+}
+
+.cardFallback {
+  width: 96px;
+  height: 134px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  display: grid;
+  place-items: center;
+  padding: 8px;
+  text-align: center;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.myHand {
+  padding-bottom: 6px;
+}
+
+.handRow {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.cardMini {
+  width: 72px;
+  flex: 0 0 auto;
+  cursor: grab;
+}
+
+.cardMini:active {
+  cursor: grabbing;
+}
+
+.cardArtMini {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.previewBox {
+  display: grid;
+  gap: 8px;
+}
+
+.previewName {
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.previewImg {
+  width: 100%;
+  height: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.notice.compact {
+  margin-bottom: 10px;
+}
+
+/* Overlays */
+
+.overlayCenter {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.overlayTop {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: 12px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+
+.diceWidget {
+  width: 140px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 12px;
+  text-align: center;
+}
+
+.diceWidget.rolling {
+  animation: dicePulse 0.18s linear infinite;
+}
+
+@keyframes dicePulse {
+  0% {
+    transform: scale(1);
+  }
+
+  50% {
+    transform: scale(1.03);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+.diceTitle {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.diceValue {
+  font-size: 44px;
+  font-weight: 900;
+}
+
+.diceBy {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.phaseWidget {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: capitalize;
+}
+
+/* Sidebar zone lists */
+
+.zoneList {
+  display: grid;
+  gap: 8px;
+  max-height: 260px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.zoneRow {
+  display: grid;
+  grid-template-columns: 34px 1fr auto;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.zoneThumb {
+  width: 34px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+.zoneThumbFallback {
+  width: 34px;
+  height: 48px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.zoneName {
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.zoneActions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.zoneActions button {
+  padding: 4px 6px;
+  border-radius: 8px;
+  font-size: 11px;
+}
