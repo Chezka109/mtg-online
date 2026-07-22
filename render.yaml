@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: mtg-online-server
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm -w shared run build && npm -w server run build
+    startCommand: npm -w server run start
+    healthCheckPath: /healthz
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_VERSION
+        value: "24"
+      - key: CLIENT_ORIGIN
+        sync: false

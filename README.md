@@ -47,6 +47,14 @@ npm run dev:all
 - Client:
   - `VITE_SERVER_URL` (default `http://localhost:3001`)
 
+## Deployment
+
+- The Socket.IO server is configured for a free Render web service with `render.yaml`.
+- The Vite client is configured for Netlify with `netlify.toml`.
+- Set Render's `CLIENT_ORIGIN` to the production Netlify URL.
+- Set Netlify's `VITE_SERVER_URL` to the production Render URL.
+- `server/data/card-index.json` must be present in production for indexed card and image resolution.
+
 ## Notes
 
 - Scryfall images are fetched by `scryfallId` and cached on disk under `server/.cache/scryfall/`.
