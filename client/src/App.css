@@ -222,6 +222,7 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .topActions button { padding: 6px 10px; font-size: 11px; }
 .accentButton { color: var(--gold-light); border-color: rgba(201,168,106,.3); }
 .connectionDot { margin-left: 6px; }
+.inspectorToggle { display: none; }
 
 .workspace {
   min-height: 0;
@@ -332,6 +333,11 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .selectedTitle { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
 .selectedTitle strong { font: 500 12px Georgia, serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .selectedTitle span { color: var(--gold); text-transform: uppercase; font-size: 7px; letter-spacing: .09em; }
+.cardTagEditor { display: flex; align-items: center; justify-content: space-between; margin: 9px 0; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; font-size: 7px; }
+.cardTagEditor > div { display: flex; gap: 4px; }
+.cardTagEditor button { width: 14px; height: 14px; padding: 0; border: 2px solid transparent; border-radius: 50%; }
+.cardTagEditor button.active { border-color: white; box-shadow: 0 0 0 1px #111; }
+.cardTagEditor .clearTag { background: #303630; color: #aaa; font-size: 9px; }
 .selectedActions { display: flex; flex-wrap: wrap; gap: 5px; margin: 9px 0; }
 .selectedActions button, .attachmentControls button { padding: 5px 7px; font-size: 8px; }
 .selectedEmpty { color: #5c625c; font-size: 9px; padding: 10px 0 3px; }
@@ -438,7 +444,6 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   .workspace { grid-template-columns: 230px minmax(0,1fr) 285px; }
   .floatingPanel { right: 297px; }
   .organizedBoard { grid-template-columns: repeat(6, 140px); }
-  .topActions button:not(.accentButton) { display: none; }
 }
 
 @media (max-width: 880px) {
@@ -474,7 +479,8 @@ button:disabled { opacity: .4; cursor: not-allowed; }
   .workspace { grid-template-columns: 1fr; }
   .leftRail { display: none; }
   .rightRail { position: fixed; z-index: 30; right: 0; top: 52px; bottom: 0; width: 255px; transform: translateX(calc(100% - 8px)); transition: transform 180ms; box-shadow: -10px 0 30px rgba(0,0,0,.4); }
-  .rightRail:hover, .rightRail:focus-within { transform: translateX(0); }
+  .rightRail:hover, .rightRail:focus-within, .rightRail.open { transform: translateX(0); }
+  .inspectorToggle { display: inline-block; }
   .centerStage { grid-template-rows: 40px minmax(0,1fr) 150px; }
   .boardToolbar span { display: none; }
   .battlefields { grid-auto-rows: minmax(230px,1fr); }

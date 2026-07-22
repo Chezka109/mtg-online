@@ -97,6 +97,7 @@ function App() {
   const [showRandomizer, setShowRandomizer] = useState(false)
   const [showDeckImport, setShowDeckImport] = useState(false)
   const [showZone, setShowZone] = useState<InspectableZone | null>(null)
+  const [inspectorOpen, setInspectorOpen] = useState(false)
   const [glossaryQuery, setGlossaryQuery] = useState('')
   const [randomMode, setRandomMode] = useState<'dice' | 'coin' | 'number' | 'player'>('dice')
   const [diceSides, setDiceSides] = useState(20)
@@ -456,6 +457,7 @@ function App() {
           <button onClick={() => setShowRules(true)}>Rules</button>
           <button onClick={() => setShowGlossary(true)}>MTG index</button>
           <button className="accentButton" onClick={() => setShowRandomizer((open) => !open)}>◇ Randomizer</button>
+          <button className="inspectorToggle" onClick={() => setInspectorOpen((open) => !open)}>Card</button>
           <span className={`connectionDot ${connected ? 'online' : ''}`} title={connected ? 'Connected' : 'Disconnected'} />
         </div>
       </header>
@@ -524,7 +526,7 @@ function App() {
           </section>
         </section>
 
-        <aside className="rightRail panelSurface">
+        <aside className={`rightRail panelSurface ${inspectorOpen ? 'open' : ''}`}>
           <section className="railSection previewSection">
             <div className="sectionHeading"><span>Card preview</span>{previewCard && <button onClick={() => setPreviewCardId(null)}>×</button>}</div>
             {previewCard ? <div className="largePreview">{previewCard.definition.imageUrl ? <img src={previewCard.definition.imageUrl} alt={previewCard.definition.name} /> : <div className="cardPlaceholder">{previewCard.definition.name}</div>}<strong>{previewCard.definition.name}</strong><span>{previewCard.definition.typeLine ?? 'Card details loading…'}</span></div> : <div className="previewEmpty"><span>◫</span><p>Double-click or double-tap any card to inspect it here.</p></div>}
@@ -534,6 +536,7 @@ function App() {
             <div className="sectionHeading"><span>Selected card</span></div>
             {selectedCard ? <>
               <div className="selectedTitle"><strong>{selectedCard.definition.name}</strong><span>{selectedCard.zone}</span></div>
+              <div className="cardTagEditor"><span>Border tag</span><div>{CARD_TAGS.map((color) => <button key={color} className={`bg-${color} ${selectedCard.colorTag === color ? 'active' : ''}`} onClick={() => sendAction({ type: 'card:setColorTag', cardId: selectedCard.id, color })} aria-label={`${color} border`} />)}<button className="clearTag" onClick={() => sendAction({ type: 'card:setColorTag', cardId: selectedCard.id })}>×</button></div></div>
               <div className="selectedActions">
                 {selectedCard.zone === 'battlefield' && <button onClick={() => sendAction({ type: 'tapToggle', cardId: selectedCard.id })}>{selectedCard.tapped ? 'Untap' : 'Tap'}</button>}
                 {selectedCard.zone !== 'battlefield' && <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'battlefield' })}>Battlefield</button>}
