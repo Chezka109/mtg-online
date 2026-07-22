@@ -89,7 +89,6 @@ function App() {
   const [chatText, setChatText] = useState('')
   const [deckText, setDeckText] = useState('')
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
-  const [previewCardId, setPreviewCardId] = useState<string | null>(null)
   const [zoomedCardId, setZoomedCardId] = useState<string | null>(null)
   const [attachFrom, setAttachFrom] = useState<string | null>(null)
   const [layoutMode, setLayoutMode] = useState<'organized' | 'freeform'>('organized')
@@ -231,7 +230,7 @@ function App() {
     [playerId, state],
   )
   const selectedCard = selectedCardId && state ? state.cards[selectedCardId] : null
-  const previewCard = previewCardId && state ? state.cards[previewCardId] : null
+  const previewCard = selectedCard
   const zoomedCard = zoomedCardId && state ? state.cards[zoomedCardId] : null
   const filteredGlossary = GLOSSARY.filter(([term, definition]) =>
     `${term} ${definition}`.toLowerCase().includes(glossaryQuery.toLowerCase()),
@@ -285,15 +284,17 @@ function App() {
     setChatText('')
   }
 
-  function handleCardTap(cardId: string, clickCount: number) {
+  function selectCard(cardId: string) {
+    setSelectedCardId(cardId)
+    setInspectorOpen(true)
+  }
+
+  function handleCardTap(cardId: string) {
     if (dragMovedRef.current) {
       dragMovedRef.current = false
       return
     }
-    setSelectedCardId(cardId)
-    if (clickCount >= 2) {
-      setPreviewCardId(cardId)
-    }
+    selectCard(cardId)
   }
 
   function defaultPosition(index: number) {
@@ -322,7 +323,7 @@ function App() {
   function openContextMenu(cardId: string, event: React.MouseEvent) {
     event.preventDefault()
     event.stopPropagation()
-    setSelectedCardId(cardId)
+    selectCard(cardId)
     setContextMenu({ cardId, x: Math.min(event.clientX, window.innerWidth - 230), y: Math.min(event.clientY, window.innerHeight - 110) })
   }
 
@@ -342,10 +343,10 @@ function App() {
         key={card.id}
         className={`tableCard ${card.tapped ? 'tapped' : ''} ${selectedCardId === card.id ? 'selected' : ''} tag-${card.colorTag ?? 'none'}`}
         style={freeform ? { left: position.x, top: position.y } : undefined}
-        onClick={(event) => handleCardTap(card.id, event.detail)}
+        onClick={() => handleCardTap(card.id)}
         onContextMenu={(event) => openContextMenu(card.id, event)}
         onPointerDown={(event) => beginCardDrag(card, event, index)}
-        title="Click to select · Double-click/tap to preview · Right-click to color tag"
+        title="Click to select and preview · Right-click to color tag"
       >
         {card.definition.imageUrl ? (
           <img src={card.definition.imageUrl} alt={card.definition.name} draggable={false} />
@@ -498,7 +499,7 @@ function App() {
 
         <section className="centerStage">
           <div className="boardToolbar">
-            <div><strong>Battlefield</strong><span>Double-tap a card to preview</span></div>
+            <div><strong>Battlefield</strong><span>Select a card to preview</span></div>
             <div className="segmentedControl"><button className={layoutMode === 'organized' ? 'active' : ''} onClick={() => setLayoutMode('organized')}>Organized</button><button className={layoutMode === 'freeform' ? 'active' : ''} onClick={() => setLayoutMode('freeform')}>Freeform</button></div>
           </div>
           <div className="battlefields">
@@ -512,7 +513,7 @@ function App() {
               {(me?.hand ?? []).map((cardId) => {
                 const card = state.cards[cardId]
                 if (!card) return null
-                return <article key={card.id} className={`handCard tag-${card.colorTag ?? 'none'} ${selectedCardId === card.id ? 'selected' : ''}`} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', card.id)} onClick={(event) => handleCardTap(card.id, event.detail)} onContextMenu={(event) => openContextMenu(card.id, event)}>{card.definition.imageUrl ? <img src={card.definition.imageUrl} alt={card.definition.name} draggable={false} /> : <div className="cardPlaceholder">{card.definition.name}</div>}</article>
+                return <article key={card.id} className={`handCard tag-${card.colorTag ?? 'none'} ${selectedCardId === card.id ? 'selected' : ''}`} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', card.id)} onClick={() => handleCardTap(card.id)} onContextMenu={(event) => openContextMenu(card.id, event)}>{card.definition.imageUrl ? <img src={card.definition.imageUrl} alt={card.definition.name} draggable={false} /> : <div className="cardPlaceholder">{card.definition.name}</div>}</article>
               })}
               {(me?.hand.length ?? 0) === 0 && <div className="emptyHand">Your hand is empty. Draw a card to begin.</div>}
             </div>
@@ -521,8 +522,8 @@ function App() {
 
         <aside className={`rightRail panelSurface ${inspectorOpen ? 'open' : ''}`}>
           <section className="railSection previewSection">
-            <div className="sectionHeading"><span>Card preview</span>{previewCard && <div className="previewHeaderActions"><button onClick={() => setZoomedCardId(previewCard.id)} aria-label="Open large card preview" title="Open large preview">⛶</button><button onClick={() => setPreviewCardId(null)} aria-label="Close card preview">×</button></div>}</div>
-            {previewCard ? <div className="largePreview">{previewCard.definition.imageUrl ? <img src={previewCard.definition.imageUrl} alt={previewCard.definition.name} /> : <div className="cardPlaceholder">{previewCard.definition.name}</div>}<strong>{previewCard.definition.name}</strong><span>{previewCard.definition.typeLine ?? 'Card details loading…'}</span></div> : <div className="previewEmpty"><span>◫</span><p>Double-click or double-tap any card to inspect it here.</p></div>}
+            <div className="sectionHeading"><span>Card preview</span>{previewCard && <div className="previewHeaderActions"><button onClick={() => setZoomedCardId(previewCard.id)} aria-label="Open large card preview" title="Open large preview">⛶</button></div>}</div>
+            {previewCard ? <div className="largePreview">{previewCard.definition.imageUrl ? <img src={previewCard.definition.imageUrl} alt={previewCard.definition.name} /> : <div className="cardPlaceholder">{previewCard.definition.name}</div>}<strong>{previewCard.definition.name}</strong><span>{previewCard.definition.typeLine ?? 'Card details loading…'}</span></div> : <div className="previewEmpty"><span>◫</span><p>Select any card to inspect it here.</p></div>}
           </section>
 
           <section className="railSection selectedSection">
@@ -576,7 +577,7 @@ function App() {
       {showRules && <div className="modalBackdrop" onMouseDown={() => setShowRules(false)}><section className="modalSheet rulesModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Rules-light guide</small><h2>Playing at this table</h2></div><button onClick={() => setShowRules(false)}>×</button></header><p className="modalIntro">Arcane Table provides structure without acting as a judge. The official Magic rules still apply, but players remain free to communicate shortcuts and correct mistakes.</p><div className="rulesList">{RULES.map(([title, body]) => <article key={title}><b>{title}</b><p>{body}</p></article>)}</div><div className="rulesCallout"><strong>Golden rule</strong><span>If all players understand and agree on the game state, keep playing.</span></div></section></div>}
       {showDeckImport && <div className="modalBackdrop" onMouseDown={() => setShowDeckImport(false)}><section className="modalSheet deckModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Deck setup</small><h2>Import from MTG Arena</h2></div><button onClick={() => setShowDeckImport(false)}>×</button></header><p className="modalIntro">Paste an Arena-formatted deck list. Importing replaces your current cards and shuffles the new library.</p><textarea value={deckText} onChange={(event) => setDeckText(event.target.value)} placeholder={'Deck\n4 Lightning Strike (DMU) 137\n…'} rows={14} /><div className="modalActions"><button onClick={() => setDeckText('')}>Clear</button><button className="primaryButton" onClick={importDeck}>Import and shuffle</button></div></section></div>}
       {zoomedCard && <div className="modalBackdrop cardZoomBackdrop" onMouseDown={() => setZoomedCardId(null)}><section className="cardZoomModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Card preview</small><strong>{zoomedCard.definition.name}</strong><span>{zoomedCard.definition.typeLine}</span></div><button onClick={() => setZoomedCardId(null)} aria-label="Close large preview">×</button></header><div className="zoomedFaces">{zoomedCard.definition.faces?.some((face) => face.imageUrl) ? zoomedCard.definition.faces.filter((face) => face.imageUrl).map((face) => <figure key={face.name}><img src={face.imageUrl} alt={face.name} /><figcaption>{face.name}</figcaption></figure>) : zoomedCard.definition.imageUrl ? <figure><img src={zoomedCard.definition.imageUrl} alt={zoomedCard.definition.name} /></figure> : <div className="zoomPlaceholder">No card image is available yet.</div>}</div><p>Click outside the card or press the close button to return to the table.</p></section></div>}
-      {showZone && me && <div className="modalBackdrop" onMouseDown={() => setShowZone(null)}><section className="modalSheet zoneModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Your zones</small><h2>{showZone.charAt(0).toUpperCase() + showZone.slice(1)}</h2></div><button onClick={() => setShowZone(null)}>×</button></header><div className="zoneModalToolbar"><span>{me[showZone].length} cards</span>{showZone === 'library' && <button onClick={() => sendAction({ type: 'shuffleLibrary', playerId })}>Shuffle library</button>}</div><div className="zoneCardGrid">{me[showZone].slice().reverse().map((cardId) => { const card = state.cards[cardId]; if (!card) return null; return <article key={card.id} className={`zoneCard tag-${card.colorTag ?? 'none'}`} onClick={(event) => handleCardTap(card.id, event.detail)} onContextMenu={(event) => openContextMenu(card.id, event)}>{card.definition.imageUrl ? <img src={card.definition.imageUrl} alt={card.definition.name} /> : <div className="cardPlaceholder">{card.definition.name}</div>}<strong>{card.definition.name}</strong><div><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'hand' }) }}>Hand</button><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'battlefield' }) }}>Battlefield</button>{showZone !== 'graveyard' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'graveyard' }) }}>GY</button>}{showZone !== 'exile' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'exile' }) }}>Exile</button>}</div></article>})}{me[showZone].length === 0 && <div className="emptyZone">No cards in this zone.</div>}</div></section></div>}
+      {showZone && me && <div className="modalBackdrop" onMouseDown={() => setShowZone(null)}><section className="modalSheet zoneModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Your zones</small><h2>{showZone.charAt(0).toUpperCase() + showZone.slice(1)}</h2></div><button onClick={() => setShowZone(null)}>×</button></header><div className="zoneModalToolbar"><span>{me[showZone].length} cards</span>{showZone === 'library' && <button onClick={() => sendAction({ type: 'shuffleLibrary', playerId })}>Shuffle library</button>}</div><div className="zoneCardGrid">{me[showZone].slice().reverse().map((cardId) => { const card = state.cards[cardId]; if (!card) return null; return <article key={card.id} className={`zoneCard tag-${card.colorTag ?? 'none'}`} onClick={() => handleCardTap(card.id)} onContextMenu={(event) => openContextMenu(card.id, event)}>{card.definition.imageUrl ? <img src={card.definition.imageUrl} alt={card.definition.name} /> : <div className="cardPlaceholder">{card.definition.name}</div>}<strong>{card.definition.name}</strong><div><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'hand' }) }}>Hand</button><button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'battlefield' }) }}>Battlefield</button>{showZone !== 'graveyard' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'graveyard' }) }}>GY</button>}{showZone !== 'exile' && <button onClick={(event) => { event.stopPropagation(); sendAction({ type: 'moveCard', cardId: card.id, toZone: 'exile' }) }}>Exile</button>}</div></article>})}{me[showZone].length === 0 && <div className="emptyZone">No cards in this zone.</div>}</div></section></div>}
 
       {contextMenu && <div className="cardContextMenu" style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}><span>Card border color</span><div>{CARD_TAGS.map((color) => <button key={color} className={`bg-${color}`} onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId, color }); setContextMenu(null) }} aria-label={color} />)}<button className="clearTag" onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId }); setContextMenu(null) }}>×</button></div></div>}
       {randomOverlay && <div className="resultOverlay"><span>◇</span><strong>{randomOverlay}</strong></div>}
