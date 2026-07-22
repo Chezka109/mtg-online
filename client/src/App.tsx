@@ -1,19 +1,82 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { GameAction, GameMode, GameState, Phase } from '@mtg-online/shared'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import type { CardInstance, GameAction, GameMode, GameState, Phase, PlayerState } from '@mtg-online/shared'
 import './App.css'
 import { createMtgSocket, type MtgSocket } from './lib/socket'
 import { parseArenaDeck } from './lib/arenaDeck'
 
 const LS_PLAYER_ID = 'mtg-online.playerId'
+const SERVER_URL = import.meta.env.VITE_SERVER_URL ?? 'http://localhost:3001'
+const PHASES: Array<{ value: Phase; label: string }> = [
+  { value: 'beginning', label: 'Beginning' },
+  { value: 'precombat_main', label: 'Precombat main' },
+  { value: 'combat', label: 'Combat' },
+  { value: 'postcombat_main', label: 'Postcombat main' },
+  { value: 'ending', label: 'Ending' },
+]
+const CARD_TAGS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'white'] as const
+const COUNTER_COLORS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple', 'pink', 'white', 'gray'] as const
+const DICE = [4, 6, 8, 10, 12, 20, 100]
+const BOARD_CATEGORIES = ['land', 'creature', 'artifact', 'enchantment', 'planeswalker', 'other'] as const
+type BoardCategory = (typeof BOARD_CATEGORIES)[number]
 
-const CARD_H = 134
+const GLOSSARY = [
+  ['Activated ability', 'An ability written as “cost: effect.” You choose when to activate it unless another rule says otherwise.'],
+  ['Attach', 'Put an Aura, Equipment, or Fortification onto another object. This tabletop lets players attach any permanent for convenience.'],
+  ['Combat', 'The turn phase where attackers and blockers are declared and combat damage is dealt.'],
+  ['Commander', 'A legendary creature designated before the game that can be cast from the command zone.'],
+  ['Counter', 'A marker that changes or tracks something on a card or player, such as +1/+1, loyalty, poison, or energy.'],
+  ['Deathtouch', 'Any amount of damage from a source with deathtouch is lethal to a creature.'],
+  ['Exile', 'A public zone where cards are kept apart from the battlefield and graveyard.'],
+  ['First strike', 'This creature deals combat damage in an earlier combat-damage step.'],
+  ['Flash', 'You may cast this spell any time you could cast an instant.'],
+  ['Flying', 'This creature can be blocked only by creatures with flying or reach.'],
+  ['Haste', 'This creature can attack and use tap abilities without waiting for your next turn.'],
+  ['Hexproof', 'This permanent cannot be targeted by spells or abilities opponents control.'],
+  ['Indestructible', 'Effects that say “destroy” and lethal damage do not destroy this permanent.'],
+  ['Lifelink', 'Damage dealt by this source also causes its controller to gain that much life.'],
+  ['Mulligan', 'Shuffle your hand into your library and draw a new opening hand; normal formats then require putting cards on the bottom.'],
+  ['Priority', 'The opportunity to cast spells, activate abilities, or pass. This app intentionally does not enforce priority.'],
+  ['Reach', 'This creature can block creatures with flying.'],
+  ['Stack', 'Spells and abilities wait here to resolve in last-in, first-out order. The current tabletop handles this informally.'],
+  ['Token', 'A game object represented by a marker rather than a card.'],
+  ['Trample', 'Excess combat damage may be assigned to the defending player or planeswalker.'],
+  ['Vigilance', 'Attacking does not cause this creature to tap.'],
+  ['Zone', 'A game area such as library, hand, battlefield, graveyard, exile, command zone, or stack.'],
+] as const
 
-function getServerUrl(): string {
-  return (import.meta as any).env?.VITE_SERVER_URL ?? 'http://localhost:3001'
+const RULES = [
+  ['1. Set up', 'Import a deck, shuffle, draw an opening hand, and set the life total appropriate for your format.'],
+  ['2. Turn flow', 'Move through Beginning, Precombat Main, Combat, Postcombat Main, and Ending. The active player controls the phase selector.'],
+  ['3. Playing cards', 'Drag a card from your hand to your battlefield. Use the selected-card panel to move it elsewhere, attach it, or add counters.'],
+  ['4. Communication', 'Announce targets, responses, triggers, and shortcuts in chat or voice. The app is a shared tabletop, not a strict rules judge.'],
+  ['5. Flexible enforcement', 'Players may correct mistakes, rewind with mutual agreement, adjust any life total, and move cards manually between zones.'],
+] as const
+
+function cardCategory(card: CardInstance): BoardCategory {
+  const type = card.definition.typeLine?.toLowerCase() ?? ''
+  if (type.includes('land')) return 'land'
+  if (type.includes('creature')) return 'creature'
+  if (type.includes('planeswalker')) return 'planeswalker'
+  if (type.includes('artifact')) return 'artifact'
+  if (type.includes('enchantment')) return 'enchantment'
+  return 'other'
+}
+
+function categoryLabel(category: BoardCategory) {
+  return category.charAt(0).toUpperCase() + category.slice(1)
+}
+
+function logIcon(line: string) {
+  if (/rolled|flipped|randomized|random player/.test(line)) return '◇'
+  if (/drew|mulligan|shuffled|deck/.test(line)) return '▤'
+  if (/life/.test(line)) return '♥'
+  if (/→/.test(line)) return '›'
+  if (/joined|reconnected|created/.test(line)) return '●'
+  return '·'
 }
 
 function App() {
-  const [socket, setSocket] = useState<MtgSocket | null>(null)
+  const [socket] = useState<MtgSocket>(() => createMtgSocket(SERVER_URL))
   const [connected, setConnected] = useState(false)
   const [playerName, setPlayerName] = useState('')
   const [gameMode, setGameMode] = useState<GameMode>('standard')
@@ -24,284 +87,122 @@ function App() {
   const [toast, setToast] = useState<string | null>(null)
   const [chatText, setChatText] = useState('')
   const [deckText, setDeckText] = useState('')
-  const [attachFrom, setAttachFrom] = useState<string | null>(null)
-
-  const [previewCardId, setPreviewCardId] = useState<string | null>(null)
   const [selectedCardId, setSelectedCardId] = useState<string | null>(null)
-  const [battlefieldDragOver, setBattlefieldDragOver] = useState(false)
-
-  const [diceRolling, setDiceRolling] = useState(false)
-  const [diceTemp, setDiceTemp] = useState(1)
-  const [diceOverlay, setDiceOverlay] = useState<{ by: string; value: number } | null>(null)
-  const lastLogEntryRef = useRef<string | null>(null)
-
+  const [previewCardId, setPreviewCardId] = useState<string | null>(null)
+  const [attachFrom, setAttachFrom] = useState<string | null>(null)
+  const [layoutMode, setLayoutMode] = useState<'organized' | 'freeform'>('organized')
+  const [showGlossary, setShowGlossary] = useState(false)
+  const [showRules, setShowRules] = useState(false)
+  const [showRandomizer, setShowRandomizer] = useState(false)
+  const [showDeckImport, setShowDeckImport] = useState(false)
+  const [glossaryQuery, setGlossaryQuery] = useState('')
+  const [randomMode, setRandomMode] = useState<'dice' | 'coin' | 'number' | 'player'>('dice')
+  const [diceSides, setDiceSides] = useState(20)
+  const [diceCount, setDiceCount] = useState(1)
+  const [diceModifier, setDiceModifier] = useState(0)
+  const [rangeMin, setRangeMin] = useState(1)
+  const [rangeMax, setRangeMax] = useState(100)
+  const [randomOverlay, setRandomOverlay] = useState<string | null>(null)
   const [phaseOverlay, setPhaseOverlay] = useState<string | null>(null)
-  const lastPhaseRef = useRef<Phase | null>(null)
-
-  const boardViewportRef = useRef<HTMLDivElement | null>(null)
-  const ignoreNextTapRef = useRef<string | null>(null)
-  const dragMovedRef = useRef(false)
-  const [dragging, setDragging] = useState<
-    | null
-    | {
-      cardId: string
-      board: 'me'
-      startClientX: number
-      startClientY: number
-      startX: number
-      startY: number
-    }
-  >(null)
+  const [counterKind, setCounterKind] = useState('+1/+1')
+  const [counterAmount, setCounterAmount] = useState(1)
+  const [counterColor, setCounterColor] = useState('green')
+  const [contextMenu, setContextMenu] = useState<{ cardId: string; x: number; y: number } | null>(null)
+  const [dragging, setDragging] = useState<null | {
+    cardId: string
+    startClientX: number
+    startClientY: number
+    startX: number
+    startY: number
+  }>(null)
   const [dragOverride, setDragOverride] = useState<Record<string, { x: number; y: number }>>({})
   const dragOverrideRef = useRef<Record<string, { x: number; y: number }>>({})
+  const dragMovedRef = useRef(false)
+  const lastLogRef = useRef<string | null>(null)
+  const lastPhaseRef = useRef<Phase | null>(null)
+
+  const notify = useCallback((message: string, duration = 2600) => {
+    setToast(message)
+    window.setTimeout(() => setToast(null), duration)
+  }, [])
+
+  const processIncomingState = useCallback((next: GameState) => {
+    const newest = next.log[next.log.length - 1] ?? null
+    if (newest && newest !== lastLogRef.current) {
+      lastLogRef.current = newest
+      if (/rolled|flipped a coin|randomized|random player/.test(newest)) {
+        setRandomOverlay(newest)
+        window.setTimeout(() => setRandomOverlay(null), 2200)
+      }
+    }
+    const phase = next.turn?.phase
+    if (phase && lastPhaseRef.current && phase !== lastPhaseRef.current) {
+      setPhaseOverlay(phase.replaceAll('_', ' '))
+      window.setTimeout(() => setPhaseOverlay(null), 1400)
+    }
+    if (phase) lastPhaseRef.current = phase
+    setState(next)
+  }, [])
+
+  useEffect(() => {
+    const onConnect = () => setConnected(true)
+    const onDisconnect = () => setConnected(false)
+    const onError = (error: Error) => {
+      setConnected(false)
+      notify(`Connection: ${error.message}`)
+    }
+    const onState = ({ state: next }: { state: GameState }) => processIncomingState(next)
+    const onToast = ({ message }: { kind: 'info' | 'error'; message: string }) => notify(message)
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    socket.on('connect_error', onError)
+    socket.on('state:full', onState)
+    socket.on('state:patch', onState)
+    socket.on('system:toast', onToast)
+    return () => {
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+      socket.off('connect_error', onError)
+      socket.off('state:full', onState)
+      socket.off('state:patch', onState)
+      socket.off('system:toast', onToast)
+      socket.disconnect()
+    }
+  }, [notify, processIncomingState, socket])
 
   useEffect(() => {
     dragOverrideRef.current = dragOverride
   }, [dragOverride])
 
-  const serverUrl = useMemo(() => getServerUrl(), [])
-
-  useEffect(() => {
-    const s = createMtgSocket(serverUrl)
-    setSocket(s)
-    setConnected(s.connected)
-
-    s.on('connect', () => setConnected(true))
-    s.on('disconnect', () => setConnected(false))
-    s.on('connect_error', (err) => {
-      setConnected(false)
-      setToast(`ERROR: ${err.message}`)
-      window.setTimeout(() => setToast(null), 3000)
-    })
-
-    s.on('state:full', ({ state }) => setState(state))
-    s.on('state:patch', ({ state }) => setState(state))
-    s.on('system:toast', ({ message, kind }) => {
-      setToast(`${kind.toUpperCase()}: ${message}`)
-      window.setTimeout(() => setToast(null), 3000)
-    })
-
-    return () => {
-      s.disconnect()
-      setSocket(null)
-      setConnected(false)
-    }
-  }, [serverUrl])
-
-  function myPlayer() {
-    if (!state || !playerId) return null
-    return state.players[playerId] ?? null
-  }
-
-  function sendAction(action: GameAction) {
-    socket?.emit('game:action', action)
-  }
-
-  async function copyRoom() {
-    if (!roomCode) return
-    await navigator.clipboard.writeText(roomCode)
-    setToast('INFO: Copied room code')
-    window.setTimeout(() => setToast(null), 2000)
-  }
-
-  function onCreateRoom() {
-    if (!socket || !connected) return setToast('ERROR: Not connected to server')
-    const name = playerName.trim()
-    if (!name) return setToast('ERROR: Enter your name')
-    socket.emit('room:create', { playerName: name, gameMode }, (res) => {
-      if (!res.ok) return setToast(`ERROR: ${res.error}`)
-      setRoomCode(res.roomCode)
-      setPlayerId(res.playerId)
-      localStorage.setItem(LS_PLAYER_ID, res.playerId)
-      setState(res.state)
-    })
-  }
-
-  function onJoinRoom() {
-    if (!socket || !connected) return setToast('ERROR: Not connected to server')
-    const name = playerName.trim()
-    if (!name) return setToast('ERROR: Enter your name')
-    const code = joinCode.trim().toUpperCase()
-    if (!code) return setToast('ERROR: Enter a room code')
-    const existingPid = localStorage.getItem(LS_PLAYER_ID) ?? undefined
-    socket.emit(
-      'room:join',
-      { roomCode: code, playerName: name, playerId: existingPid },
-      (res) => {
-        if (!res.ok) return setToast(`ERROR: ${res.error}`)
-        setRoomCode(res.roomCode)
-        setPlayerId(res.playerId)
-        localStorage.setItem(LS_PLAYER_ID, res.playerId)
-        setState(res.state)
-      },
-    )
-  }
-
-  function onSendChat() {
-    const text = chatText.trim()
-    if (!text) return
-    socket?.emit('chat:send', { text })
-    setChatText('')
-  }
-
-  function onImportDeck() {
-    const parsed = parseArenaDeck(deckText)
-    if (!parsed.ok) return setToast(`ERROR: ${parsed.error}`)
-    socket?.emit('deck:importArena', { deck: parsed.deck }, (res) => {
-      if (!res.ok) return setToast(`ERROR: ${res.error}`)
-      setToast('INFO: Deck imported')
-      window.setTimeout(() => setToast(null), 2000)
-    })
-  }
-
-  useEffect(() => {
-    if (!state) return
-
-    // Dice overlay driven by authoritative log entries so both players see it.
-    const newest = state.log[state.log.length - 1] ?? null
-    if (newest && newest !== lastLogEntryRef.current) {
-      lastLogEntryRef.current = newest
-      const m = newest.match(/^(.*) rolled d20: (\d{1,2})$/)
-      if (m) {
-        const by = m[1] || 'Player'
-        const value = Math.max(1, Math.min(20, Number(m[2])))
-        setDiceRolling(false)
-        setDiceOverlay({ by, value })
-        window.setTimeout(() => setDiceOverlay(null), 1600)
-      }
-    }
-  }, [state])
-
-  useEffect(() => {
-    if (!state?.turn?.phase) return
-    const phase = state.turn.phase
-    if (lastPhaseRef.current === null) {
-      lastPhaseRef.current = phase
-      return
-    }
-    if (lastPhaseRef.current !== phase) {
-      lastPhaseRef.current = phase
-      setPhaseOverlay(phase)
-      window.setTimeout(() => setPhaseOverlay(null), 1300)
-    }
-  }, [state?.turn?.phase])
-
-  const me = myPlayer()
-
-  const players = useMemo(() => {
-    if (!state) return []
-    return Object.values(state.players)
-  }, [state])
-
-  const opponentHandCount = useMemo(() => {
-    if (!state || !playerId) return 0
-    return Object.values(state.players)
-      .filter((p) => p.id !== playerId)
-      .reduce((sum, p) => sum + p.hand.length, 0)
-  }, [state, playerId])
-
-  const allBattlefield = useMemo(() => {
-    if (!state) return [] as Array<{ cardId: string; ownerId: string }>
-    const out: Array<{ cardId: string; ownerId: string }> = []
-    for (const p of Object.values(state.players)) {
-      for (const cid of p.battlefield) out.push({ cardId: cid, ownerId: p.id })
-    }
-    return out
-  }, [state])
-
-  const previewCard = previewCardId && state ? state.cards[previewCardId] : null
-  const selectedCard = selectedCardId && state ? state.cards[selectedCardId] : null
-
-  function shuffleIntoLibrary(cardId: string) {
-    if (!state || !playerId) return
-    const c = state.cards[cardId]
-    if (!c) return
-    // Only shuffle your own library (server blocks other playerId-scoped actions).
-    if (c.ownerId !== playerId) return
-    sendAction({ type: 'moveCard', cardId, toZone: 'library' })
-    sendAction({ type: 'shuffleLibrary', playerId })
-  }
-
-  function onRollD20() {
-    if (!playerId) return
-    setDiceOverlay(null)
-    setDiceRolling(true)
-    const startedAt = Date.now()
-    const interval = window.setInterval(() => setDiceTemp(1 + Math.floor(Math.random() * 20)), 60)
-    window.setTimeout(() => {
-      window.clearInterval(interval)
-      // If no log-driven result showed up, stop rolling anyway.
-      if (Date.now() - startedAt > 600) setDiceRolling(false)
-    }, 900)
-    sendAction({ type: 'dice:rollD20', playerId })
-  }
-
-  function onAnnouncePhase(phase: Phase) {
-    if (!playerId) return
-    sendAction({ type: 'turn:setPhase', playerId, phase })
-  }
-
-  function onNextPhase() {
-    if (!playerId) return
-    sendAction({ type: 'turn:nextPhase', playerId })
-  }
-
-  function clamp(n: number, min: number, max: number) {
-    return Math.max(min, Math.min(max, n))
-  }
-
-  function defaultBattlefieldPos(index: number) {
-    const cols = 10
-    const gapX = 16
-    const gapY = 18
-    const cellW = 134 + gapX
-    const cellH = 134 + gapY
-    return { x: 12 + (index % cols) * cellW, y: 12 + Math.floor(index / cols) * cellH }
-  }
-
-  function getRenderedPos(cardId: string, fallbackIndex: number) {
-    if (dragOverride[cardId]) return dragOverride[cardId]
-    const c = state?.cards[cardId]
-    if (c?.battlefieldPos) return c.battlefieldPos
-    return defaultBattlefieldPos(fallbackIndex)
-  }
-
-  function beginDrag(cardId: string, startClientX: number, startClientY: number, startX: number, startY: number) {
-    dragMovedRef.current = false
-    setDragging({ cardId, board: 'me', startClientX, startClientY, startX, startY })
-    setDragOverride((prev) => ({ ...prev, [cardId]: { x: startX, y: startY } }))
-  }
+  const sendAction = useCallback((action: GameAction) => socket.emit('game:action', action), [socket])
 
   useEffect(() => {
     if (!dragging) return
-    const d = dragging
-
-    function onMove(e: PointerEvent) {
-      const dx = e.clientX - d.startClientX
-      const dy = e.clientY - d.startClientY
-      if (!dragMovedRef.current && Math.abs(dx) + Math.abs(dy) > 3) dragMovedRef.current = true
-      setDragOverride((prev) => ({
-        ...prev,
-        [d.cardId]: { x: d.startX + dx, y: d.startY + dy },
+    const current = dragging
+    const onMove = (event: PointerEvent) => {
+      const dx = event.clientX - current.startClientX
+      const dy = event.clientY - current.startClientY
+      if (Math.abs(dx) + Math.abs(dy) > 4) dragMovedRef.current = true
+      setDragOverride((previous) => ({
+        ...previous,
+        [current.cardId]: { x: current.startX + dx, y: current.startY + dy },
       }))
     }
-
-    function onUp() {
-      const p = dragOverrideRef.current[d.cardId] ?? { x: d.startX, y: d.startY }
-      const x = clamp(p.x, -500, 5000)
-      const y = clamp(p.y, -500, 5000)
-      sendAction({ type: 'card:setPos', cardId: d.cardId, x, y })
-
-      if (dragMovedRef.current) ignoreNextTapRef.current = d.cardId
-
-      setDragOverride((prev) => {
-        const next = { ...prev }
-        delete next[d.cardId]
+    const onUp = () => {
+      const position = dragOverrideRef.current[current.cardId] ?? { x: current.startX, y: current.startY }
+      sendAction({
+        type: 'card:setPos',
+        cardId: current.cardId,
+        x: Math.max(0, Math.min(1800, position.x)),
+        y: Math.max(0, Math.min(500, position.y)),
+      })
+      setDragOverride((previous) => {
+        const next = { ...previous }
+        delete next[current.cardId]
         return next
       })
       setDragging(null)
     }
-
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
     window.addEventListener('pointercancel', onUp)
@@ -310,432 +211,376 @@ function App() {
       window.removeEventListener('pointerup', onUp)
       window.removeEventListener('pointercancel', onUp)
     }
-  }, [dragging])
+  }, [dragging, sendAction])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const close = () => setContextMenu(null)
+    window.addEventListener('pointerdown', close)
+    return () => window.removeEventListener('pointerdown', close)
+  }, [contextMenu])
+
+  const me = state && playerId ? state.players[playerId] ?? null : null
+  const opponents = useMemo(
+    () => (state && playerId ? Object.values(state.players).filter((player) => player.id !== playerId) : []),
+    [playerId, state],
+  )
+  const selectedCard = selectedCardId && state ? state.cards[selectedCardId] : null
+  const previewCard = previewCardId && state ? state.cards[previewCardId] : null
+  const filteredGlossary = GLOSSARY.filter(([term, definition]) =>
+    `${term} ${definition}`.toLowerCase().includes(glossaryQuery.toLowerCase()),
+  )
+
+  function createRoom() {
+    const name = playerName.trim()
+    if (!connected) return notify('The server is waking up. Try again in a moment.')
+    if (!name) return notify('Enter your player name first.')
+    socket.emit('room:create', { playerName: name, gameMode }, (response) => {
+      if (!response.ok) return notify(response.error)
+      setRoomCode(response.roomCode)
+      setPlayerId(response.playerId)
+      localStorage.setItem(LS_PLAYER_ID, response.playerId)
+      processIncomingState(response.state)
+    })
+  }
+
+  function joinRoom() {
+    const name = playerName.trim()
+    const code = joinCode.trim().toUpperCase()
+    if (!connected) return notify('The server is waking up. Try again in a moment.')
+    if (!name || !code) return notify('Enter your name and room code.')
+    socket.emit(
+      'room:join',
+      { roomCode: code, playerName: name, playerId: localStorage.getItem(LS_PLAYER_ID) ?? undefined },
+      (response) => {
+        if (!response.ok) return notify(response.error)
+        setRoomCode(response.roomCode)
+        setPlayerId(response.playerId)
+        localStorage.setItem(LS_PLAYER_ID, response.playerId)
+        processIncomingState(response.state)
+      },
+    )
+  }
+
+  function importDeck() {
+    const parsed = parseArenaDeck(deckText)
+    if (!parsed.ok) return notify(parsed.error)
+    socket.emit('deck:importArena', { deck: parsed.deck }, (response) => {
+      if (!response.ok) return notify(response.error)
+      notify('Deck imported and shuffled.')
+      setShowDeckImport(false)
+    })
+  }
+
+  function sendChat() {
+    const text = chatText.trim()
+    if (!text) return
+    socket.emit('chat:send', { text })
+    setChatText('')
+  }
+
+  function handleCardTap(cardId: string, clickCount: number) {
+    if (dragMovedRef.current) {
+      dragMovedRef.current = false
+      return
+    }
+    setSelectedCardId(cardId)
+    if (clickCount >= 2) {
+      setPreviewCardId(cardId)
+    }
+  }
+
+  function defaultPosition(index: number) {
+    return { x: 18 + (index % 11) * 112, y: 42 + Math.floor(index / 11) * 150 }
+  }
+
+  function renderedPosition(card: CardInstance, index: number) {
+    return dragOverride[card.id] ?? card.battlefieldPos ?? defaultPosition(index)
+  }
+
+  function beginCardDrag(card: CardInstance, event: React.PointerEvent, index: number) {
+    if (layoutMode !== 'freeform' || event.button !== 0) return
+    const position = renderedPosition(card, index)
+    dragMovedRef.current = false
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setDragging({
+      cardId: card.id,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: position.x,
+      startY: position.y,
+    })
+    setDragOverride((previous) => ({ ...previous, [card.id]: position }))
+  }
+
+  function openContextMenu(cardId: string, event: React.MouseEvent) {
+    event.preventDefault()
+    event.stopPropagation()
+    setSelectedCardId(cardId)
+    setContextMenu({ cardId, x: Math.min(event.clientX, window.innerWidth - 230), y: Math.min(event.clientY, window.innerHeight - 110) })
+  }
+
+  function dropIntoBattlefield(event: React.DragEvent, player: PlayerState) {
+    event.preventDefault()
+    const cardId = event.dataTransfer.getData('text/plain')
+    if (!cardId || !state) return
+    const card = state.cards[cardId]
+    if (!card || card.ownerId !== player.id) return
+    sendAction({ type: 'moveCard', cardId, toZone: 'battlefield' })
+  }
+
+  function renderCard(card: CardInstance, index: number, freeform = false) {
+    const position = renderedPosition(card, index)
+    return (
+      <article
+        key={card.id}
+        className={`tableCard ${card.tapped ? 'tapped' : ''} ${selectedCardId === card.id ? 'selected' : ''} tag-${card.colorTag ?? 'none'}`}
+        style={freeform ? { left: position.x, top: position.y } : undefined}
+        onClick={(event) => handleCardTap(card.id, event.detail)}
+        onContextMenu={(event) => openContextMenu(card.id, event)}
+        onPointerDown={(event) => beginCardDrag(card, event, index)}
+        title="Click to select · Double-click/tap to preview · Right-click to color tag"
+      >
+        {card.definition.imageUrl ? (
+          <img src={card.definition.imageUrl} alt={card.definition.name} draggable={false} />
+        ) : (
+          <div className="cardPlaceholder">{card.definition.name}</div>
+        )}
+        {card.counters.length > 0 && (
+          <div className="counterStack">
+            {card.counters.slice(0, 3).map((counter) => (
+              <span key={counter.id} className={`counterChip counter-${counter.color ?? 'gray'}`}>
+                {counter.kind} {counter.amount}
+              </span>
+            ))}
+          </div>
+        )}
+        {card.attachedTo && <span className="attachedMark">⌁</span>}
+      </article>
+    )
+  }
+
+  function battlefieldZone(player: PlayerState, isMe: boolean) {
+    const cards = player.battlefield.map((id) => state?.cards[id]).filter((card): card is CardInstance => Boolean(card))
+    return (
+      <section
+        key={player.id}
+        className={`playerBattlefield ${isMe ? 'mine' : 'opponent'}`}
+        onDragOver={(event) => isMe && event.preventDefault()}
+        onDrop={(event) => isMe && dropIntoBattlefield(event, player)}
+      >
+        <header className="battlefieldHeader">
+          <div>
+            <span className="playerDot" />
+            <strong>{player.name}</strong>
+            {isMe && <span className="youLabel">You</span>}
+          </div>
+          <div className="zoneSummary">{cards.length} permanents · {player.hand.length} cards in hand</div>
+        </header>
+        {layoutMode === 'organized' ? (
+          <div className="organizedBoard">
+            {BOARD_CATEGORIES.map((category) => {
+              const categoryCards = cards.filter((card) => cardCategory(card) === category)
+              return (
+                <div className={`typeLane lane-${category}`} key={category}>
+                  <div className="laneLabel">
+                    <span>{categoryLabel(category)}</span>
+                    <b>{categoryCards.length}</b>
+                  </div>
+                  <div className="laneCards">{categoryCards.map((card, index) => renderCard(card, index))}</div>
+                </div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="freeformBoard">{cards.map((card, index) => renderCard(card, index, true))}</div>
+        )}
+        {cards.length === 0 && <div className="emptyBattlefield">{isMe ? 'Drag a card here from your hand' : 'No permanents yet'}</div>}
+      </section>
+    )
+  }
+
+  function runRandomizer() {
+    if (!playerId) return
+    if (randomMode === 'dice') sendAction({ type: 'random:rollDice', playerId, sides: diceSides, count: diceCount, modifier: diceModifier })
+    if (randomMode === 'coin') sendAction({ type: 'random:coinFlip', playerId })
+    if (randomMode === 'number') sendAction({ type: 'random:number', playerId, min: rangeMin, max: rangeMax })
+    if (randomMode === 'player') sendAction({ type: 'random:choosePlayer', playerId })
+  }
 
   if (!roomCode || !state || !playerId) {
     return (
-      <div className="page">
-        <header className="header">
-          <h1>MTG Online</h1>
-          <div className="muted">Server: {serverUrl}</div>
-        </header>
-
-        <div className="panel">
-          <label>
-            Your name
-            <input value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="e.g. Chezka" />
-          </label>
-
-          <div className="row">
-            <label>
-              Game mode
-              <select value={gameMode} onChange={(e) => setGameMode(e.target.value as GameMode)}>
-                <option value="standard">Standard</option>
-                <option value="pioneer">Pioneer</option>
-                <option value="modern">Modern</option>
-                <option value="legacy">Legacy</option>
-                <option value="vintage">Vintage</option>
-                <option value="commander">Commander</option>
-                <option value="brawl">Brawl</option>
-                <option value="custom">Custom</option>
-              </select>
-            </label>
+      <main className="landingPage">
+        <div className="landingGlow glowOne" />
+        <div className="landingGlow glowTwo" />
+        <nav className="landingNav">
+          <div className="brand"><span className="brandMark">M</span><span>Arcane Table</span></div>
+          <div className={`serverStatus ${connected ? 'online' : 'waking'}`}><span />{connected ? 'Server online' : 'Server waking'}</div>
+        </nav>
+        <section className="heroSection">
+          <div className="heroCopy">
+            <div className="eyebrow">A shared tabletop for Magic players</div>
+            <h1>Play the cards.<br /><em>Keep the conversation.</em></h1>
+            <p>A flexible multiplayer board with synchronized zones, Arena deck import, card artwork, counters, dice, chat, and just enough structure to keep the game moving.</p>
+            <div className="heroFeatures">
+              <span>◇ Live multiplayer</span><span>◇ Rules-light play</span><span>◇ All MTG printings</span>
+            </div>
           </div>
-
-          <div className="row">
-            <button onClick={onCreateRoom} disabled={!socket || !playerName.trim()}>
-              Create room
-            </button>
+          <div className="entryCard">
+            <div className="entryTabs"><span className="active">Start playing</span><span>No account required</span></div>
+            <label>Player name<input value={playerName} onChange={(event) => setPlayerName(event.target.value)} placeholder="How should players see you?" maxLength={32} /></label>
+            <label>Format<select value={gameMode} onChange={(event) => setGameMode(event.target.value as GameMode)}>
+              {['standard', 'pioneer', 'modern', 'legacy', 'vintage', 'commander', 'brawl', 'custom'].map((mode) => <option value={mode} key={mode}>{mode[0].toUpperCase() + mode.slice(1)}</option>)}
+            </select></label>
+            <button className="primaryButton" onClick={createRoom} disabled={!playerName.trim() || !connected}>Create a new table</button>
+            <div className="orDivider"><span />or join a friend<span /></div>
+            <div className="joinRow"><input value={joinCode} onChange={(event) => setJoinCode(event.target.value.toUpperCase())} placeholder="ROOM CODE" maxLength={6} /><button onClick={joinRoom} disabled={!playerName.trim() || !joinCode.trim() || !connected}>Join</button></div>
+            <p className="entryNote">Rooms are temporary and disappear when the free server restarts.</p>
           </div>
-
-          <div className="divider" />
-
-          <label>
-            Room code
-            <input value={joinCode} onChange={(e) => setJoinCode(e.target.value)} placeholder="e.g. 7H2KQ9" />
-          </label>
-          <div className="row">
-            <button onClick={onJoinRoom} disabled={!socket || !playerName.trim() || !joinCode.trim()}>
-              Join room
-            </button>
-          </div>
-
-          {toast && <div className="toast">{toast}</div>}
-        </div>
-      </div>
+        </section>
+        <footer className="landingFooter">Built for friendly games · Rules are resolved by players</footer>
+        {toast && <div className="globalToast">{toast}</div>}
+      </main>
     )
   }
 
   return (
-    <div className="gamePage">
-      {(diceRolling || diceOverlay) && (
-        <div className="overlayCenter" aria-live="polite">
-          <div className={`diceWidget ${diceRolling ? 'rolling' : ''}`}>
-            <div className="diceTitle">d20</div>
-            <div className="diceValue">{diceOverlay?.value ?? diceTemp}</div>
-            {diceOverlay && <div className="diceBy">{diceOverlay.by}</div>}
-          </div>
+    <main className="tableApp">
+      <header className="topBar">
+        <div className="brand compact"><span className="brandMark">M</span><span>Arcane Table</span></div>
+        <div className="roomIdentity"><span>Room</span><button onClick={() => navigator.clipboard.writeText(roomCode).then(() => notify('Room code copied.'))}>{roomCode}</button><span className="modePill">{state.gameMode}</span></div>
+        <div className="topActions">
+          <button onClick={() => setShowRules(true)}>Rules</button>
+          <button onClick={() => setShowGlossary(true)}>MTG index</button>
+          <button className="accentButton" onClick={() => setShowRandomizer((open) => !open)}>◇ Randomizer</button>
+          <span className={`connectionDot ${connected ? 'online' : ''}`} title={connected ? 'Connected' : 'Disconnected'} />
         </div>
-      )}
+      </header>
 
-      {phaseOverlay && (
-        <div className="overlayTop" aria-live="polite">
-          <div className="phaseWidget">{phaseOverlay.replaceAll('_', ' ')}</div>
-        </div>
-      )}
-
-      {/* Fullscreen freeform battlefield */}
-      <div
-        className={`battlefieldRoot dropTarget ${battlefieldDragOver ? 'dragOver' : ''}`}
-        ref={boardViewportRef}
-        onDragOver={(e) => {
-          e.preventDefault()
-          setBattlefieldDragOver(true)
-        }}
-        onDragLeave={() => setBattlefieldDragOver(false)}
-        onDrop={(e) => {
-          e.preventDefault()
-          setBattlefieldDragOver(false)
-          const cid = e.dataTransfer.getData('text/plain')
-          if (!cid) return
-
-          const viewport = boardViewportRef.current
-          const rect = viewport?.getBoundingClientRect()
-          if (viewport && rect) {
-            const x = e.clientX - rect.left + viewport.scrollLeft - CARD_H / 2
-            const y = e.clientY - rect.top + viewport.scrollTop - CARD_H / 2
-            sendAction({ type: 'card:setPos', cardId: cid, x, y })
-          }
-          sendAction({ type: 'moveCard', cardId: cid, toZone: 'battlefield' })
-        }}
-        onPointerDown={(e) => {
-          // Click on empty board clears selection.
-          if (e.target === e.currentTarget) setSelectedCardId(null)
-        }}
-      >
-        <div className="boardSurface" onPointerDown={() => setSelectedCardId(null)}>
-          {allBattlefield.map(({ cardId }, idx) => {
-            const c = state.cards[cardId]
-            if (!c) return null
-            const pos = getRenderedPos(cardId, idx)
-            const isSelected = selectedCardId === cardId
-            return (
-              <div
-                key={cardId}
-                className={`cardBattle ${c.tapped ? 'isTapped' : ''} ${isSelected ? 'isSelected' : ''}`}
-                style={{ left: pos.x, top: pos.y }}
-                onPointerDown={(e) => {
-                  e.stopPropagation()
-                  setSelectedCardId(cardId)
-                  setPreviewCardId(cardId)
-                }}
-                onPointerUp={() => setPreviewCardId(null)}
-              >
-                <button
-                  className="cardTap"
-                  onDoubleClick={() => sendAction({ type: 'tapToggle', cardId })}
-                  onPointerDown={(e) => {
-                    if (e.button !== 0) return
-                    e.stopPropagation()
-                    e.currentTarget.setPointerCapture(e.pointerId)
-                    beginDrag(cardId, e.clientX, e.clientY, pos.x, pos.y)
-                  }}
-                  title="Drag to move • Double-click to tap"
-                >
-                  {c.definition.imageUrl ? (
-                    <img className="cardArt" src={c.definition.imageUrl} alt={c.definition.name} loading="lazy" draggable={false} />
-                  ) : (
-                    <div className="cardFallback">{c.definition.name}</div>
-                  )}
-                </button>
-
-                {c.counters.length > 0 && (
-                  <div className="cardBadges">
-                    {c.counters.slice(0, 2).map((ct) => (
-                      <div key={ct.id} className="badge">
-                        {ct.kind}:{ct.amount}
-                      </div>
-                    ))}
-                    {c.counters.length > 2 && <div className="badge">+{c.counters.length - 2}</div>}
-                  </div>
-                )}
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Floating HUD: left */}
-      <aside className="hudPanel hudLeft">
-        <div className="hudTitleRow">
-          <div>
-            <div className="hudTitle">Room {roomCode}</div>
-            <div className="muted">Mode: {state.gameMode}</div>
-          </div>
-          <button onClick={copyRoom}>Copy</button>
-        </div>
-
-        <div className="panel" style={{ padding: 10 }}>
-          <div className="muted">Players</div>
-          <div className="playersHud">
-            {players.map((p) => (
-              <div key={p.id} className="playerHudRow">
-                <div className="playerName">{p.name}{p.id === playerId ? ' (You)' : ''}</div>
-                <div className="row">
-                  <button onClick={() => sendAction({ type: 'setLife', playerId: p.id, life: p.life - 1 })}>-</button>
-                  <div className="life">{p.life}</div>
-                  <button onClick={() => sendAction({ type: 'setLife', playerId: p.id, life: p.life + 1 })}>+</button>
-                </div>
-                <div className="muted">mull {p.mulligans ?? 0} • hand {p.hand.length}</div>
-              </div>
+      <div className="workspace">
+        <aside className="leftRail panelSurface">
+          <section className="railSection playersSection">
+            <div className="sectionHeading"><span>Players</span><small>{Object.keys(state.players).length}</small></div>
+            {Object.values(state.players).map((player) => (
+              <article className={`playerRow ${player.id === playerId ? 'active' : ''}`} key={player.id}>
+                <div className="avatar">{player.name.charAt(0).toUpperCase()}</div>
+                <div className="playerInfo"><strong>{player.name}</strong><span>{player.hand.length} hand · {player.library.length} library</span></div>
+                <div className="lifeControl"><button onClick={() => sendAction({ type: 'setLife', playerId: player.id, life: player.life - 1 })}>−</button><b>{player.life}</b><button onClick={() => sendAction({ type: 'setLife', playerId: player.id, life: player.life + 1 })}>+</button></div>
+              </article>
             ))}
-          </div>
-        </div>
+          </section>
 
-        <div className="panel" style={{ padding: 10 }}>
-          <div className="phaseRow">
-            <div className="phaseLabel">Phase</div>
-            <div className="phaseValue">{state.turn?.phase.replaceAll('_', ' ')}</div>
-            <select value={state.turn?.phase} onChange={(e) => onAnnouncePhase(e.target.value as Phase)} aria-label="Set phase">
-              <option value="beginning">Beginning</option>
-              <option value="precombat_main">Precombat main</option>
-              <option value="combat">Combat</option>
-              <option value="postcombat_main">Postcombat main</option>
-              <option value="ending">Ending</option>
-            </select>
-            <button onClick={onNextPhase}>Next</button>
-          </div>
-          <div className="row wrap" style={{ marginTop: 8 }}>
-            <button onClick={onRollD20}>Roll d20</button>
-            <button onClick={() => sendAction({ type: 'shuffleLibrary', playerId })}>Shuffle</button>
-            <button onClick={() => sendAction({ type: 'draw', playerId, count: 1 })}>Draw</button>
-            <button onClick={() => sendAction({ type: 'draw', playerId, count: 7 })}>Draw 7</button>
-            <button onClick={() => sendAction({ type: 'mulligan', playerId })}>Mulligan</button>
-          </div>
-          <div className="muted" style={{ marginTop: 6 }}>
-            Opponent hand: {opponentHandCount}
-          </div>
-        </div>
-      </aside>
-
-      {/* Floating HUD: right */}
-      <aside className="hudPanel hudRight">
-        <section className="panel">
-          <h2>Preview</h2>
-          {previewCard ? (
-            <div className="previewBox">
-              <div className="previewName">{previewCard.definition.name}</div>
-              {previewCard.definition.imageUrl ? (
-                <img className="previewImg" src={previewCard.definition.imageUrl} alt={previewCard.definition.name} />
-              ) : (
-                <div className="muted">No image yet</div>
-              )}
+          <section className="railSection">
+            <div className="sectionHeading"><span>Turn</span><small>#{state.turn?.number ?? 1}</small></div>
+            <div className="phaseTrack">
+              {PHASES.map((phase, index) => <button key={phase.value} className={state.turn?.phase === phase.value ? 'active' : ''} onClick={() => sendAction({ type: 'turn:setPhase', playerId, phase: phase.value })}><i>{index + 1}</i><span>{phase.label}</span></button>)}
             </div>
-          ) : (
-            <div className="muted">Hold a card to preview</div>
-          )}
+            <button className="wideButton" onClick={() => sendAction({ type: 'turn:nextPhase', playerId })}>Advance phase <span>→</span></button>
+          </section>
+
+          <section className="railSection quickActions">
+            <div className="sectionHeading"><span>Quick actions</span></div>
+            <div className="actionGrid">
+              <button onClick={() => sendAction({ type: 'draw', playerId, count: 1 })}><b>＋</b>Draw</button>
+              <button onClick={() => sendAction({ type: 'shuffleLibrary', playerId })}><b>↻</b>Shuffle</button>
+              <button onClick={() => sendAction({ type: 'mulligan', playerId })}><b>⟳</b>Mulligan</button>
+              <button onClick={() => setShowDeckImport(true)}><b>⇧</b>Import</button>
+            </div>
+          </section>
+
+          <section className="railSection zoneCounts">
+            <div className="sectionHeading"><span>Your zones</span></div>
+            <div><button>Library</button><b>{me?.library.length ?? 0}</b></div>
+            <div><button>Graveyard</button><b>{me?.graveyard.length ?? 0}</b></div>
+            <div><button>Exile</button><b>{me?.exile.length ?? 0}</b></div>
+            <div><button>Command</button><b>{me?.command.length ?? 0}</b></div>
+          </section>
+        </aside>
+
+        <section className="centerStage">
+          <div className="boardToolbar">
+            <div><strong>Battlefield</strong><span>Double-tap a card to preview</span></div>
+            <div className="segmentedControl"><button className={layoutMode === 'organized' ? 'active' : ''} onClick={() => setLayoutMode('organized')}>Organized</button><button className={layoutMode === 'freeform' ? 'active' : ''} onClick={() => setLayoutMode('freeform')}>Freeform</button></div>
+          </div>
+          <div className="battlefields">
+            {opponents.length ? opponents.map((opponent) => battlefieldZone(opponent, false)) : <div className="waitingZone"><span>◎</span><strong>Waiting for an opponent</strong><p>Share room code {roomCode}</p></div>}
+            {me && battlefieldZone(me, true)}
+          </div>
+
+          <section className="handShelf">
+            <div className="handHeader"><div><strong>Your hand</strong><span>{me?.hand.length ?? 0} cards</span></div><span>Drag to your battlefield</span></div>
+            <div className="handCards">
+              {(me?.hand ?? []).map((cardId) => {
+                const card = state.cards[cardId]
+                if (!card) return null
+                return <article key={card.id} className={`handCard tag-${card.colorTag ?? 'none'} ${selectedCardId === card.id ? 'selected' : ''}`} draggable onDragStart={(event) => event.dataTransfer.setData('text/plain', card.id)} onClick={(event) => handleCardTap(card.id, event.detail)} onContextMenu={(event) => openContextMenu(card.id, event)}>{card.definition.imageUrl ? <img src={card.definition.imageUrl} alt={card.definition.name} draggable={false} /> : <div className="cardPlaceholder">{card.definition.name}</div>}</article>
+              })}
+              {(me?.hand.length ?? 0) === 0 && <div className="emptyHand">Your hand is empty. Draw a card to begin.</div>}
+            </div>
+          </section>
         </section>
 
-        <section className="panel">
-          <h2>Selected card</h2>
-          {selectedCard ? (
-            <div className="selectedCardBox">
-              <div className="previewName">{selectedCard.definition.name}</div>
-              <div className="muted">zone: {selectedCard.zone}</div>
-              <div className="row wrap" style={{ marginTop: 8 }}>
-                {selectedCard.zone === 'battlefield' && (
-                  <button onClick={() => sendAction({ type: 'tapToggle', cardId: selectedCard.id })}>
-                    {selectedCard.tapped ? 'Untap' : 'Attack (Tap)'}
-                  </button>
-                )}
-                <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'hand' })}>To hand</button>
-                <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'graveyard' })}>To GY</button>
+        <aside className="rightRail panelSurface">
+          <section className="railSection previewSection">
+            <div className="sectionHeading"><span>Card preview</span>{previewCard && <button onClick={() => setPreviewCardId(null)}>×</button>}</div>
+            {previewCard ? <div className="largePreview">{previewCard.definition.imageUrl ? <img src={previewCard.definition.imageUrl} alt={previewCard.definition.name} /> : <div className="cardPlaceholder">{previewCard.definition.name}</div>}<strong>{previewCard.definition.name}</strong><span>{previewCard.definition.typeLine ?? 'Card details loading…'}</span></div> : <div className="previewEmpty"><span>◫</span><p>Double-click or double-tap any card to inspect it here.</p></div>}
+          </section>
+
+          <section className="railSection selectedSection">
+            <div className="sectionHeading"><span>Selected card</span></div>
+            {selectedCard ? <>
+              <div className="selectedTitle"><strong>{selectedCard.definition.name}</strong><span>{selectedCard.zone}</span></div>
+              <div className="selectedActions">
+                {selectedCard.zone === 'battlefield' && <button onClick={() => sendAction({ type: 'tapToggle', cardId: selectedCard.id })}>{selectedCard.tapped ? 'Untap' : 'Tap'}</button>}
+                {selectedCard.zone !== 'battlefield' && <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'battlefield' })}>Battlefield</button>}
+                <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'hand' })}>Hand</button>
+                <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'graveyard' })}>Graveyard</button>
                 <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'exile' })}>Exile</button>
-                <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'library' })}>To library</button>
-                <button onClick={() => shuffleIntoLibrary(selectedCard.id)} disabled={selectedCard.ownerId !== playerId}>
-                  Shuffle into deck
-                </button>
-                {selectedCard.zone !== 'battlefield' && (
-                  <button onClick={() => sendAction({ type: 'moveCard', cardId: selectedCard.id, toZone: 'battlefield' })}>
-                    To battlefield
-                  </button>
-                )}
               </div>
-
-              <div className="divider" />
-
-              <div className="row wrap">
-                <button
-                  onClick={() => {
-                    const kind = window.prompt('Counter kind (e.g. +1/+1, loyalty):', '+1/+1')?.trim()
-                    if (!kind) return
-                    const amtRaw = window.prompt('Amount to add (default 1):', '1')?.trim()
-                    const amount = amtRaw ? Number(amtRaw) : 1
-                    if (!Number.isFinite(amount)) return
-                    sendAction({ type: 'counter:add', cardId: selectedCard.id, kind, amount })
-                  }}
-                >
-                  + Counter
-                </button>
-                <button onClick={() => sendAction({ type: 'counter:clear', cardId: selectedCard.id })}>Clear counters</button>
-                {!attachFrom && <button onClick={() => setAttachFrom(selectedCard.id)}>Attach…</button>}
+              <div className="counterEditor">
+                <div className="subheading">Counters</div>
+                {selectedCard.counters.map((counter) => <div className="counterControl" key={counter.id}><span className={`colorDot bg-${counter.color ?? 'gray'}`} /><strong>{counter.kind}</strong><button onClick={() => sendAction({ type: 'counter:add', cardId: selectedCard.id, kind: counter.kind, amount: -1, color: counter.color })}>−</button><b>{counter.amount}</b><button onClick={() => sendAction({ type: 'counter:add', cardId: selectedCard.id, kind: counter.kind, amount: 1, color: counter.color })}>+</button><button className="removeButton" onClick={() => sendAction({ type: 'counter:set', cardId: selectedCard.id, kind: counter.kind, amount: 0 })}>×</button></div>)}
+                <div className="newCounter"><select value={counterKind} onChange={(event) => setCounterKind(event.target.value)}><option>+1/+1</option><option>-1/-1</option><option>Loyalty</option><option>Charge</option><option>Shield</option><option>Stun</option><option>Quest</option><option>Custom</option></select><input type="number" min="-99" max="99" value={counterAmount} onChange={(event) => setCounterAmount(Number(event.target.value))} /><div className="miniPalette">{COUNTER_COLORS.map((color) => <button key={color} className={`bg-${color} ${counterColor === color ? 'active' : ''}`} onClick={() => setCounterColor(color)} aria-label={`${color} counter`} />)}</div><button className="addCounterButton" onClick={() => { const kind = counterKind === 'Custom' ? 'Counter' : counterKind; sendAction({ type: 'counter:add', cardId: selectedCard.id, kind, amount: counterAmount, color: counterColor }) }}>Add counter</button></div>
+              </div>
+              <div className="attachmentControls">
+                {!attachFrom ? <button onClick={() => setAttachFrom(selectedCard.id)}>Start attachment</button> : attachFrom !== selectedCard.id ? <><span>Attach {state.cards[attachFrom]?.definition.name ?? 'card'} here?</span><button onClick={() => { sendAction({ type: 'attach', attachmentCardId: attachFrom, targetCardId: selectedCard.id }); setAttachFrom(null) }}>Attach</button><button onClick={() => setAttachFrom(null)}>Cancel</button></> : <button onClick={() => setAttachFrom(null)}>Cancel attachment</button>}
                 {selectedCard.attachedTo && <button onClick={() => sendAction({ type: 'detach', attachmentCardId: selectedCard.id })}>Detach</button>}
               </div>
+            </> : <div className="selectedEmpty">Select a card to reveal tabletop controls.</div>}
+          </section>
 
-              {attachFrom && attachFrom !== selectedCard.id && (
-                <div className="notice compact" style={{ marginTop: 10 }}>
-                  Attach <b>{state.cards[attachFrom]?.definition.name ?? 'card'}</b> to <b>{selectedCard.definition.name}</b>
-                  <div className="row" style={{ marginTop: 8 }}>
-                    <button
-                      onClick={() => {
-                        sendAction({ type: 'attach', attachmentCardId: attachFrom, targetCardId: selectedCard.id })
-                        setAttachFrom(null)
-                      }}
-                    >
-                      Attach
-                    </button>
-                    <button onClick={() => setAttachFrom(null)}>Cancel</button>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="muted">Click a card on the battlefield</div>
-          )}
-        </section>
+          <section className="railSection activitySection">
+            <div className="sectionHeading"><span>Table activity</span><small>Live</small></div>
+            <div className="activityLog">{state.log.slice(-30).reverse().map((line, index) => <div className="activityItem" key={`${line}-${index}`}><i>{logIcon(line)}</i><span>{line}</span><time>{index === 0 ? 'now' : ''}</time></div>)}</div>
+          </section>
 
-        <section className="panel">
-          <h2>Deck import (Arena)</h2>
-          <textarea value={deckText} onChange={(e) => setDeckText(e.target.value)} rows={6} placeholder="Paste MTG Arena deck list here" />
-          <div className="row">
-            <button onClick={onImportDeck}>Import</button>
-            <button onClick={() => setDeckText('')}>Clear</button>
-          </div>
-          <div className="muted">Library: {me?.library.length ?? 0} • GY: {me?.graveyard.length ?? 0} • Exile: {me?.exile.length ?? 0}</div>
-        </section>
-
-        <section className="panel">
-          <h2>Graveyard</h2>
-          <div className="zoneList">
-            {(me?.graveyard ?? []).slice().reverse().slice(0, 30).map((cid) => {
-              const c = state.cards[cid]
-              if (!c) return null
-              return (
-                <div key={cid} className="zoneRow" onPointerDown={() => setPreviewCardId(cid)} onPointerUp={() => setPreviewCardId(null)}>
-                  {c.definition.imageUrl ? (
-                    <img className="zoneThumb" src={c.definition.imageUrl} alt={c.definition.name} loading="lazy" />
-                  ) : (
-                    <div className="zoneThumbFallback" />
-                  )}
-                  <div className="zoneName" title={c.definition.name}>
-                    {c.definition.name}
-                  </div>
-                  <div className="zoneActions">
-                    <button onClick={() => sendAction({ type: 'moveCard', cardId: cid, toZone: 'hand' })}>Hand</button>
-                    <button onClick={() => sendAction({ type: 'moveCard', cardId: cid, toZone: 'battlefield' })}>BF</button>
-                    <button onClick={() => sendAction({ type: 'moveCard', cardId: cid, toZone: 'exile' })}>Ex</button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
-        <section className="panel">
-          <h2>Exile</h2>
-          <div className="zoneList">
-            {(me?.exile ?? []).slice().reverse().slice(0, 30).map((cid) => {
-              const c = state.cards[cid]
-              if (!c) return null
-              return (
-                <div key={cid} className="zoneRow" onPointerDown={() => setPreviewCardId(cid)} onPointerUp={() => setPreviewCardId(null)}>
-                  {c.definition.imageUrl ? (
-                    <img className="zoneThumb" src={c.definition.imageUrl} alt={c.definition.name} loading="lazy" />
-                  ) : (
-                    <div className="zoneThumbFallback" />
-                  )}
-                  <div className="zoneName" title={c.definition.name}>
-                    {c.definition.name}
-                  </div>
-                  <div className="zoneActions">
-                    <button onClick={() => sendAction({ type: 'moveCard', cardId: cid, toZone: 'hand' })}>Hand</button>
-                    <button onClick={() => sendAction({ type: 'moveCard', cardId: cid, toZone: 'graveyard' })}>GY</button>
-                    <button onClick={() => sendAction({ type: 'moveCard', cardId: cid, toZone: 'battlefield' })}>BF</button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-
-        <section className="panel">
-          <h2>Chat</h2>
-          <div className="chat">
-            {state.chat.slice(-50).map((m) => (
-              <div key={m.id} className="chatLine">
-                <span className="muted">{state.players[m.playerId]?.name ?? 'Player'}:</span> {m.text}
-              </div>
-            ))}
-          </div>
-          <div className="row">
-            <input
-              value={chatText}
-              onChange={(e) => setChatText(e.target.value)}
-              placeholder="message"
-              onKeyDown={(e) => e.key === 'Enter' && onSendChat()}
-            />
-            <button onClick={onSendChat}>Send</button>
-          </div>
-        </section>
-
-        <section className="panel">
-          <h2>Game log</h2>
-          <div className="log">
-            {state.log.slice(-40).map((l, idx) => (
-              <div key={idx} className="muted">{l}</div>
-            ))}
-          </div>
-          {toast && <div className="toast">{toast}</div>}
-        </section>
-      </aside>
-
-      {/* Bottom hand bar */}
-      <div className="handDock" aria-label="Your hand">
-        <div className="handMeta">
-          <div className="muted">Your hand</div>
-          <div className="handCount">{me?.hand.length ?? 0}</div>
-        </div>
-        <div className="handRow">
-          {(me?.hand ?? []).map((cid) => {
-            const c = state.cards[cid]
-            if (!c) return null
-            return (
-              <div
-                key={cid}
-                className="cardMini"
-                draggable
-                onDragStart={(e) => {
-                  e.dataTransfer.setData('text/plain', cid)
-                  e.dataTransfer.effectAllowed = 'move'
-                }}
-                onPointerDown={() => {
-                  setSelectedCardId(cid)
-                  setPreviewCardId(cid)
-                }}
-                onPointerUp={() => setPreviewCardId(null)}
-                title="Drag to battlefield"
-              >
-                {c.definition.imageUrl ? (
-                  <img className="cardArtMini" src={c.definition.imageUrl} alt={c.definition.name} loading="lazy" />
-                ) : (
-                  <div className="cardFallback">{c.definition.name}</div>
-                )}
-              </div>
-            )
-          })}
-        </div>
+          <section className="railSection chatSection">
+            <div className="sectionHeading"><span>Table chat</span></div>
+            <div className="chatLog">{state.chat.slice(-30).map((message) => <div key={message.id}><strong>{state.players[message.playerId]?.name ?? 'Player'}</strong><span>{message.text}</span></div>)}</div>
+            <div className="chatComposer"><input value={chatText} onChange={(event) => setChatText(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && sendChat()} placeholder="Message the table…" /><button onClick={sendChat}>↑</button></div>
+          </section>
+        </aside>
       </div>
-    </div>
+
+      {showRandomizer && <div className="floatingPanel randomizerPanel">
+        <div className="floatingHeader"><div><small>Table tool</small><strong>Randomizer</strong></div><button onClick={() => setShowRandomizer(false)}>×</button></div>
+        <div className="randomTabs">{(['dice', 'coin', 'number', 'player'] as const).map((mode) => <button key={mode} className={randomMode === mode ? 'active' : ''} onClick={() => setRandomMode(mode)}>{mode}</button>)}</div>
+        {randomMode === 'dice' && <><div className="dicePicker">{DICE.map((sides) => <button key={sides} className={diceSides === sides ? 'active' : ''} onClick={() => setDiceSides(sides)}><span>◇</span>d{sides}</button>)}</div><div className="randomFields"><label>Dice<input type="number" min="1" max="20" value={diceCount} onChange={(event) => setDiceCount(Number(event.target.value))} /></label><label>Modifier<input type="number" min="-999" max="999" value={diceModifier} onChange={(event) => setDiceModifier(Number(event.target.value))} /></label></div></>}
+        {randomMode === 'coin' && <div className="randomDescription"><span>◐</span><p>Flip a synchronized coin visible to everyone at the table.</p></div>}
+        {randomMode === 'number' && <div className="randomFields"><label>Minimum<input type="number" value={rangeMin} onChange={(event) => setRangeMin(Number(event.target.value))} /></label><label>Maximum<input type="number" value={rangeMax} onChange={(event) => setRangeMax(Number(event.target.value))} /></label></div>}
+        {randomMode === 'player' && <div className="randomDescription"><span>◎</span><p>Choose one connected player at random.</p></div>}
+        <button className="primaryButton" onClick={runRandomizer}>{randomMode === 'dice' ? `Roll ${diceCount}d${diceSides}` : randomMode === 'coin' ? 'Flip coin' : randomMode === 'number' ? 'Pick number' : 'Choose player'}</button>
+      </div>}
+
+      {showGlossary && <div className="modalBackdrop" onMouseDown={() => setShowGlossary(false)}><section className="modalSheet glossaryModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Reference library</small><h2>Magic terminology</h2></div><button onClick={() => setShowGlossary(false)}>×</button></header><input className="searchInput" value={glossaryQuery} onChange={(event) => setGlossaryQuery(event.target.value)} placeholder="Search keywords and concepts…" /><div className="glossaryList">{filteredGlossary.map(([term, definition]) => <details key={term}><summary>{term}<span>＋</span></summary><p>{definition}</p></details>)}</div></section></div>}
+      {showRules && <div className="modalBackdrop" onMouseDown={() => setShowRules(false)}><section className="modalSheet rulesModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Rules-light guide</small><h2>Playing at this table</h2></div><button onClick={() => setShowRules(false)}>×</button></header><p className="modalIntro">Arcane Table provides structure without acting as a judge. The official Magic rules still apply, but players remain free to communicate shortcuts and correct mistakes.</p><div className="rulesList">{RULES.map(([title, body]) => <article key={title}><b>{title}</b><p>{body}</p></article>)}</div><div className="rulesCallout"><strong>Golden rule</strong><span>If all players understand and agree on the game state, keep playing.</span></div></section></div>}
+      {showDeckImport && <div className="modalBackdrop" onMouseDown={() => setShowDeckImport(false)}><section className="modalSheet deckModal" onMouseDown={(event) => event.stopPropagation()}><header><div><small>Deck setup</small><h2>Import from MTG Arena</h2></div><button onClick={() => setShowDeckImport(false)}>×</button></header><p className="modalIntro">Paste an Arena-formatted deck list. Importing replaces your current cards and shuffles the new library.</p><textarea value={deckText} onChange={(event) => setDeckText(event.target.value)} placeholder={'Deck\n4 Lightning Strike (DMU) 137\n…'} rows={14} /><div className="modalActions"><button onClick={() => setDeckText('')}>Clear</button><button className="primaryButton" onClick={importDeck}>Import and shuffle</button></div></section></div>}
+
+      {contextMenu && <div className="cardContextMenu" style={{ left: contextMenu.x, top: contextMenu.y }} onPointerDown={(event) => event.stopPropagation()}><span>Card border color</span><div>{CARD_TAGS.map((color) => <button key={color} className={`bg-${color}`} onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId, color }); setContextMenu(null) }} aria-label={color} />)}<button className="clearTag" onClick={() => { sendAction({ type: 'card:setColorTag', cardId: contextMenu.cardId }); setContextMenu(null) }}>×</button></div></div>}
+      {randomOverlay && <div className="resultOverlay"><span>◇</span><strong>{randomOverlay}</strong></div>}
+      {phaseOverlay && <div className="phaseOverlay">{phaseOverlay}</div>}
+      {toast && <div className="globalToast">{toast}</div>}
+    </main>
   )
 }
 
